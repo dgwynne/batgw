@@ -23,3 +23,7 @@
 #ifndef nitems
 #define nitems(_a) (sizeof((_a)) / sizeof((_a)[0]))
 #endif
+
+#define SET(_v, _m) ((_v) |= (_m))
+#define CLR(_v, _m) ((_v) &= ~(_m))
+#define ISSET(_v, _m) ((_v) & (_m))

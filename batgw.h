@@ -18,6 +18,8 @@
 
 #include <event.h>
 
+struct batgw;
+
 enum batgw_kv_type {
         KV_T_TEMPERATURE,
         KV_T_VOLTAGE,
@@ -34,78 +36,48 @@ struct batgw_kv {
 	time_t			 kv_updated;
 };
 
-struct batgw_b_config {
-	const char		*bc_name;
-	unsigned int		 bc_cells;
-	unsigned int		 bc_capacity_wh;
 
-	unsigned int		 bc_max_pack_dv;
-	unsigned int		 bc_min_pack_dv;
-
-	unsigned int		 bc_max_cell_mv;
-	unsigned int		 bc_min_cell_mv;
-	unsigned int		 bc_max_cell_gap_mv;
-};
-
-struct batgw_b_state {
-	unsigned int		 bs_valid;
-#define BEMU_B_VALID_SOC		(1 << 0)
-#define BEMU_B_VALID_VOLTAGE		(1 << 1)
-#define BEMU_B_VALID_MAX_CHARGE		(1 << 2)
-#define BEMU_B_VALID_MAX_DISCHARGE	(1 << 3)
-#define BEMU_B_VALID_MIN_TEMP		(1 << 4)
-#define BEMU_B_VALID_MAX_TEMP		(1 << 5)
-#define BEMU_B_VALID_AVG_TEMP		(1 << 6)
-
-	unsigned int		 bs_soc;
-	int			 bs_current_;
-	unsigned int		 bs_voltage_dv;
-	unsigned int		 bs_max_charge_w;
-	unsigned int		 bs_max_discharge_w;
-
-	unsigned int		 bs_min_temp_c;
-	unsigned int		 bs_max_temp_c;
-	unsigned int		 bs_avg_temp_c;
-
+struct batgw_battery {
+	int	 (*b_check)(const struct batgw_config_battery *);
+	void	 (*b_config)(struct batgw_config_battery *);
+	void	*(*b_attach)(struct batgw *);
+	void	 (*b_dispatch)(struct batgw *, void *);
+	void	 (*b_teleperiod)(struct batgw *, void *);
 };
 
 struct batgw_i_config {
 	const char		*ic_name;
 };
 
-struct mqtt_conn;
-struct evutil_addrinfo;
-struct evdns_getaddrinfo_request;
+struct event_base	*batgw_event_base(struct batgw *);
+unsigned int		 batgw_verbose(const struct batgw *);
 
-struct batgw {
-	struct event_base	*bg_evbase;
-	struct evdns_base	*bg_evdnsbase;
+void		*batgw_b_softc(struct batgw *);
+const struct batgw_config_battery *
+		 batgw_b_config(struct batgw *);
 
-	const struct bemu_b_config
-				*bg_b_config;
-	void			*bg_b_private;
+void		 batgw_b_set_running(struct batgw *);
+void		 batgw_b_set_stopped(struct batgw *);
+void		 batgw_b_set_soc_c_pct(struct batgw *, unsigned int);
+void		 batgw_b_set_min_temp_dc(struct batgw *, int);
+void		 batgw_b_set_max_temp_dc(struct batgw *, int);
+void		 batgw_b_set_avg_temp_dc(struct batgw *, int);
 
-	struct batgw_b_state	 bg_b_state;
+int		 batgw_i_get_min_temp_dc(struct batgw *, int *);
+int		 batgw_i_get_max_temp_dc(struct batgw *, int *);
+int		 batgw_i_get_avg_temp_dc(struct batgw *, int *);
+int		 batgw_i_get_rated_capacity_ah(const struct batgw *,
+		     unsigned int *);
+int		 batgw_i_get_remaining_capacity_ah(const struct batgw *,
+		     unsigned int *);
+int		 batgw_i_get_min_voltage_dv(struct batgw *, unsigned int *);
+int		 batgw_i_get_max_voltage_dv(struct batgw *, unsigned int *);
+int		 batgw_i_get_charge_da(struct batgw *, unsigned int *);
+int		 batgw_i_get_discharge_da(struct batgw *, unsigned int *);
+int		 batgw_i_get_soc_cpct(struct batgw *, unsigned int *);
+int		 batgw_i_get_voltage_dv(struct batgw *, unsigned int *);
+int		 batgw_i_get_current_da(struct batgw *, int *);
 
-	struct {
-		struct evutil_addrinfo	*hints;
-		struct evutil_addrinfo	*res0;
-		struct evutil_addrinfo	*resn;
-		struct evdns_getaddrinfo_request
-					*req;
-
-		unsigned int		 keep_alive;
-		const char		*host;
-		const char		*port;
-
-		const char		*devname;
-		const char		*will_topic;
-		size_t			 will_topic_len;
-	}			 bg_mqtt;
-
-	struct mqtt_conn	*bg_mqtt_conn;
-	int			 bg_mqtt_fd;
-	struct event		*bg_mqtt_ev_rd;
-	struct event		*bg_mqtt_ev_wr;
-	struct event		*bg_mqtt_ev_to;
-};
+int		 can_open(const char *, const char *);
+uint16_t	 can_betoh16(const struct can_frame *, size_t);
+uint16_t	 can_letoh16(const struct can_frame *, size_t);

@@ -1,12 +1,14 @@
-PROG=	batgw
-SRCS=	batgw.c
-SRCS+=	log.c amqtt.c
-
-SRCS+=	battery/b_byd.c
+PROG=		batgw
+SRCS=		batgw.c
+SRCS+=		log.c amqtt.c
 MAN=
 
-LDADD=-levent -lbsd
+SRCS+=		parse.y
+CFLAGS+=	-I${.CURDIR}
 
+SRCS+=	battery/b_byd.c
+
+LDADD=-levent -lbsd
 DEBUG=-g
 
 .include <bsd.prog.mk>
