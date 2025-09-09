@@ -121,24 +121,24 @@ byd_b_check(const struct batgw_config_battery *bconf)
 
 	if (bconf->ifname == NULL) {
 		fprintf(stderr, "%s battery: interface not configured\n",
-		    bconf->type);
+		    bconf->protocol);
 		rv = -1;
 	}
 
 	if (bconf->min_cell_voltage_mv != 0) {
 		fprintf(stderr, "%s battery: min cell voltage is configured\n",
-		    bconf->type);
+		    bconf->protocol);
 		rv = -1;
 	}
 	if (bconf->max_cell_voltage_mv != 0) {
 		fprintf(stderr, "%s battery: max cell voltage is configured\n",
-		    bconf->type);
+		    bconf->protocol);
 		rv = -1;
 	}
 	if (bconf->dev_cell_voltage_mv != 0) {
 		fprintf(stderr, "%s battery: "
 		    "cell voltage deviation is configured\n",
-		    bconf->type);
+		    bconf->protocol);
 		rv = -1;
 	}
 

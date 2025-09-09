@@ -273,13 +273,13 @@ dump_config(const struct batgw_config *conf)
 	}
 
 	printf("battery {\n");
-	printf("\t" "type \"%s\"" "\n", conf->battery.type);
+	printf("\t" "protocol \"%s\"" "\n", conf->battery.protocol);
 	if (conf->battery.ifname)
 		printf("\t" "interface \"%s\"" "\n", conf->battery.ifname);
 	printf("}\n\n");
 
 	printf("inverter {\n");
-	printf("\t" "type \"%s\"" "\n", conf->inverter.type);
+	printf("\t" "protocol \"%s\"" "\n", conf->inverter.protocol);
 	if (conf->inverter.ifname)
 		printf("\t" "interface \"%s\"" "\n", conf->inverter.ifname);
 	printf("}\n");

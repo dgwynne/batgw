@@ -44,7 +44,7 @@ struct batgw_config_mqtt {
 };
 
 struct batgw_config_battery {
-	char		*type;
+	char		*protocol;
 	char		*ifname;
 
 	unsigned int	 rated_capacity_ah;
@@ -63,7 +63,7 @@ struct batgw_config_battery {
 };
 
 struct batgw_config_inverter {
-	char		*type;
+	char		*protocol;
 	char		*ifname;
 };
 

@@ -101,7 +101,7 @@ typedef struct {
 %token	INET INET6 IPV4 IPV6
 %token	BATTERY
 %token	INVERTER
-%token	TYPE INTERFACE
+%token	PROTOCOL INTERFACE
 %token	INCLUDE
 %token	ERROR
 %token	<v.string>		STRING
@@ -341,13 +341,13 @@ mqtt_keepalive	: OFF				{ $$ = 0; }
 		;
 
 battery		: BATTERY {
-			if (conf->battery.type != NULL) {
+			if (conf->battery.protocol != NULL) {
 				yyerror("battery is already configured");
 				YYERROR;
 			}
 		} '{' optnl batteryopts_l '}' {
-			if (conf->battery.type == NULL) {
-				yyerror("battery type is not configured");
+			if (conf->battery.protocol == NULL) {
+				yyerror("battery protocol is not configured");
 				YYERROR;
 			}
 		}
@@ -357,13 +357,14 @@ batteryopts_l	: batteryopts_l batteryopts optnl
 		| batteryopts optnl
 		;
 
-batteryopts	: TYPE STRING {
-			if (conf->battery.type != NULL) {
-				yyerror("battery type is already configured");
+batteryopts	: PROTOCOL STRING {
+			if (conf->battery.protocol != NULL) {
+				yyerror("battery protocol "
+				    "is already configured");
 				free($2);
 				YYERROR;
 			}
-			conf->battery.type = $2;
+			conf->battery.protocol = $2;
 		}
 		| INTERFACE STRING {
 			if (conf->battery.ifname != NULL) {
@@ -377,13 +378,13 @@ batteryopts	: TYPE STRING {
 		;
 
 inverter	: INVERTER {
-			if (conf->inverter.type != NULL) {
+			if (conf->inverter.protocol != NULL) {
 				yyerror("inverter is already configured");
 				YYERROR;
 			}
 		} '{' optnl inverteropts_l '}' {
-			if (conf->inverter.type == NULL) {
-				yyerror("inverter type is not configured");
+			if (conf->inverter.protocol == NULL) {
+				yyerror("inverter protocol is not configured");
 				YYERROR;
 			}
 		}
@@ -393,13 +394,14 @@ inverteropts_l	: inverteropts_l inverteropts optnl
 		| inverteropts optnl
 		;
 
-inverteropts	: TYPE STRING {
-			if (conf->inverter.type != NULL) {
-				yyerror("inverter type is already configured");
+inverteropts	: PROTOCOL STRING {
+			if (conf->inverter.protocol != NULL) {
+				yyerror("inverter protocol "
+				    "is already configured");
 				free($2);
 				YYERROR;
 			}
-			conf->inverter.type = $2;
+			conf->inverter.protocol = $2;
 		}
 		| INTERFACE STRING {
 			if (conf->inverter.ifname != NULL) {
@@ -462,10 +464,10 @@ lookup(char *s)
 		{"off",			OFF},
 		{"password",		PASSWORD},
 		{"port",		PORT},
+		{"protocol",		PROTOCOL},
 		{"reconnect",		RECONNECT},
 		{"teleperiod",		TELEPERIOD},
 		{"topic",		TOPIC},
-		{"type",		TYPE},
 		{"username",		USERNAME},
 	};
 	const struct keywords	*p;
@@ -795,9 +797,9 @@ parse_config(const char *filename)
 
 	yyparse();
 
-	if (conf->battery.type == NULL)
+	if (conf->battery.protocol == NULL)
 		yyerror("battery has not been configured");
-	if (conf->inverter.type == NULL)
+	if (conf->inverter.protocol == NULL)
 		yyerror("inverter has not been configured");
 
 	errors = file->errors;
