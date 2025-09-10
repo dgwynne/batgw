@@ -279,10 +279,27 @@ static void
 byd_b_teleperiod(struct batgw *bg, void *arg)
 {
 	struct byd_softc *sc = arg;
+	const struct batgw_kv *kv;
 	unsigned int i;
 
 	for (i = 0; i < nitems(sc->kvs); i++) {
-		const struct batgw_kv *kv = &sc->kvs[i];
+		kv = &sc->kvs[i];
+		if (kv->kv_v == INT_MIN)
+			continue;
+
+		batgw_kv_publish(bg, "battery", kv);
+	}
+
+	for (i = 0; i < nitems(sc->pack); i++) {
+		kv = &sc->pack[i];
+		if (kv->kv_v == INT_MIN)
+			continue;
+
+		batgw_kv_publish(bg, "battery", kv);
+	}
+
+	for (i = 0; i < sc->ncell; i++) {
+		kv = &sc->cell[i];
 		if (kv->kv_v == INT_MIN)
 			continue;
 
