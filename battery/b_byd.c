@@ -20,6 +20,7 @@
 
 #include <stdlib.h>
 #include <err.h>
+#include <limits.h>
 
 #include <linux/can.h>
 #include <linux/can/raw.h>
@@ -62,7 +63,7 @@ static void	*byd_b_attach(struct batgw *);
 static void	 byd_b_dispatch(struct batgw *, void *);
 static void	 byd_b_teleperiod(struct batgw *, void *);
 
-const struct batgw_battery byd_battery = {
+const struct batgw_battery battery_byd = {
 	.b_check =			byd_b_check,
 	.b_config =			byd_b_config,
 	.b_attach =			byd_b_attach,
@@ -74,12 +75,83 @@ const struct batgw_battery byd_battery = {
  * byd software driver
  */
 
+enum byd_kvs {
+	BYD_KV_AMBIENT,
+	BYD_KV_VOLTAGE,
+	BYD_KV_SOC,
+
+	BYD_KV_PID_SOC,
+	BYD_KV_PID_VOLTAGE,
+	BYD_KV_PID_CURRENT,
+	BYD_KV_PID_TEMP_MIN,
+	BYD_KV_PID_TEMP_MAX,
+	BYD_KV_PID_TEMP_AVG,
+	BYD_KV_PID_MV_MIN,
+	BYD_KV_PID_MV_MAX,
+	BYD_KV_PID_DISCHARGE_POWER,
+	BYD_KV_PID_CHARGE_POWER,
+	BYD_KV_PID_CHARGE_COUNT,
+	BYD_KV_PID_CHARGED_AH,
+	BYD_KV_PID_DISCHARGED_AH,
+	BYD_KV_PID_CHARGED_KWH,
+	BYD_KV_PID_DISCHARGED_KWH,
+
+	BYD_KV_COUNT
+
+};
+
+static const struct batgw_kv_tpl byd_kvs_tpl[BYD_KV_COUNT] = {
+	[BYD_KV_AMBIENT] =
+		{ "ambient",		KV_T_TEMP,	0 },
+	[BYD_KV_VOLTAGE] =
+		{ NULL,			KV_T_VOLTAGE,	0 },
+	[BYD_KV_SOC] =
+		{ "soc",		KV_T_PERCENT,	1 },
+
+	[BYD_KV_PID_SOC] =
+		{ "pid-soc",		KV_T_PERCENT,	0 },
+	[BYD_KV_PID_VOLTAGE] =
+		{ "pid",		KV_T_VOLTAGE,	0 },
+	[BYD_KV_PID_CURRENT] =
+		{ "pid",		KV_T_CURRENT,	1 },
+	[BYD_KV_PID_TEMP_MIN] =
+		{ "min",		KV_T_TEMP,	0 },
+	[BYD_KV_PID_TEMP_MAX] =
+		{ "max",		KV_T_TEMP,	0 },
+	[BYD_KV_PID_TEMP_AVG] =
+		{ "avg",		KV_T_TEMP,	0 },
+	[BYD_KV_PID_MV_MIN] =
+		{ "cell-min",		KV_T_VOLTAGE,	3 },
+	[BYD_KV_PID_MV_MAX] =
+		{ "cell-max",		KV_T_VOLTAGE,	3 },
+	[BYD_KV_PID_DISCHARGE_POWER] =
+		{ "max-discharge",	KV_T_POWER,	0 },
+	[BYD_KV_PID_CHARGE_POWER] =
+		{ "max-charge",		KV_T_POWER,	0 },
+	[BYD_KV_PID_CHARGE_COUNT] =
+		{ "charge-count",	KV_T_RAW,	0 },
+	[BYD_KV_PID_CHARGED_AH] =
+		{ "charged",		KV_T_AMPHOUR,	0 },
+	[BYD_KV_PID_DISCHARGED_AH] =
+		{ "discharged",		KV_T_AMPHOUR,	0 },
+	[BYD_KV_PID_CHARGED_KWH] =
+		{ "charged",		KV_T_ENERGY,	0 },
+	[BYD_KV_PID_DISCHARGED_KWH] =
+		{ "discharged",		KV_T_ENERGY,	0 },
+};
+
 struct byd_softc {
 	int			 can;
 	struct event		*can_recv;
 	struct event		*can_poll;
 	unsigned int		 can_poll_idx;
 	struct event		*can_wdog;
+
+	struct batgw_kv		 kvs[BYD_KV_COUNT];
+	struct batgw_kv		 pack[10];
+
+	struct batgw_kv		*cell;
+	unsigned int		 ncell;
 };
 
 static void	byd_can_poll(int, short, void *);
@@ -88,31 +160,6 @@ static void	byd_can_wdog(int, short, void *);
 
 static const struct timeval byd_200ms = { 0, 200000 };
 static const struct timeval byd_wdog_tv = { 10, 0 };
-
-#if 0
-enum byd_kv_map {
-	BYD_AMBIENT_TEMP,
-	BYD_MIN_TEMP,
-	BYD_MAX_TEMP,
-	BYD_AVG_TEMP,
-
-	BYD_VOLTAGE,
-	BYD_SOC,
-
-	BYD_NKVS
-};
-
-struct b_byd_softc {
-	
-	struct batgw_kv byd_kvs[] = {
-	[BYD_AMBIENT_TEMP]	= { "ambient", INT_MIN, KV_T_TEMPERATURE, 0 },
-	[BYD_MIN_TEMP]		= { "min", INT_MIN, KV_T_TEMPERATURE, 0 },
-	[BYD_MAX_TEMP]		= { "max", INT_MIN, KV_T_TEMPERATURE, 0 },
-	[BYD_AVG_TEMP]		= { "avg", INT_MIN, KV_T_TEMPERATURE, 0 },
-	[BYD_VOLTAGE]		= { "", INT_MIN, KV_T_VOLTAGE, 0 },
-	[BYD_SOC]		= { "soc", INT_MIN, KV_T_PERCENT, 1 },
-};
-#endif
 
 static int
 byd_b_check(const struct batgw_config_battery *bconf)
@@ -166,6 +213,8 @@ byd_b_attach(struct batgw *bg)
 	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 	struct byd_softc *sc;
 	int fd;
+	unsigned int i;
+	char key[16];
 
 	sc = calloc(1, sizeof(*sc));
 	if (sc == NULL)
@@ -190,16 +239,37 @@ byd_b_attach(struct batgw *bg)
 	if (sc->can_wdog == NULL)
 		errx(1, "new byd battery can wdog event failed");
 
+	for (i = 0; i < nitems(sc->kvs); i++)
+		batgw_kv_init_tpl(&sc->kvs[i], &byd_kvs_tpl[i]);
+
+	for (i = 0; i < nitems(sc->pack); i++) {
+		snprintf(key, sizeof(key), "pack%u", i); /* XXX rv */
+		batgw_kv_init(&sc->pack[i], key, KV_T_TEMP, 0);
+	}
+
+	sc->cell = calloc(bconf->ncells, sizeof(*sc->cell));
+	if (sc->cell == NULL)
+		err(1, "%u cell alloc", bconf->ncells);
+	for (i = 0; i < bconf->ncells; i++) {
+		snprintf(key, sizeof(key), "cell%u", i); /* XXX rv */
+		batgw_kv_init(&sc->cell[i], key, KV_T_VOLTAGE, 3);
+	}
+	sc->ncell = bconf->ncells;
+
 	return (sc);
 }
 
 static void
 byd_b_dispatch(struct batgw *bg, void *arg)
 {
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 	struct byd_softc *sc = arg;
 
-//	batgw_b_set_min_voltage_dv(bg, 3800);
-//	batgw_b_set_max_voltage_dv(bg, 4410);
+	batgw_b_set_rated_capacity_ah(bg, bconf->rated_capacity_ah);
+	batgw_b_set_rated_voltage_dv(bg, bconf->rated_voltage_dv);
+
+	batgw_b_set_min_voltage_dv(bg, 3800);
+	batgw_b_set_max_voltage_dv(bg, 4410);
 
 	event_add(sc->can_recv, NULL);
 	byd_can_poll(0, 0, bg);
@@ -209,6 +279,15 @@ static void
 byd_b_teleperiod(struct batgw *bg, void *arg)
 {
 	struct byd_softc *sc = arg;
+	unsigned int i;
+
+	for (i = 0; i < nitems(sc->kvs); i++) {
+		const struct batgw_kv *kv = &sc->kvs[i];
+		if (kv->kv_v == INT_MIN)
+			continue;
+
+		batgw_kv_publish(bg, "battery", kv);
+	}
 }
 
 static const uint16_t byd_poll_pids[] = {
@@ -289,7 +368,9 @@ byd_can_recv(int fd, short events, void *arg)
 	struct can_frame frame;
 	ssize_t rv;
 	size_t i;
-	int v;
+	unsigned int uv;
+	int sv;
+	unsigned int k;
 
 	rv = recv(fd, &frame, sizeof(frame), 0);
 	if (rv == -1) {
@@ -345,54 +426,47 @@ byd_can_recv(int fd, short events, void *arg)
 	}
 
 	switch (frame.can_id) {
-#if 0
 	case 0x245:
 		switch (frame.data[0]) {
 		case 0x01:
-			byd_kv_update(bg, BYD_AMBIENT_TEMP,
-			    byd2degc(&frame, 4));
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_AMBIENT], bydtodegc(&frame, 4));
 			break;
 		}
 		break;
 	case 0x43c:
-		switch (frame.data[0]) {
-		case 0x00:
-			for (i = 0; i < 6; i++) {
-				batgw_kv_update(bg, "battery",
-				    byd_temps + 0 + i,
-				    byd2degc(&frame, 1 + i));
-			}
-			break;
-		case 0x01:
-			for (i = 0; i < 4; i++) {
-				batgw_kv_update(bg, "battery",
-				    byd_temps + 6 + i,
-				    byd2degc(&frame, 1 + i));
-			}
-			break;
+		k = frame.data[0] * 6;
+		for (i = 0; i < 6; i++) {
+			unsigned int key = k + i;
+			if (key >= nitems(sc->pack))
+				break;
+
+			batgw_kv_update(bg, "battery",
+			    &sc->pack[key], bydtodegc(&frame, 1 + i));
 		}
 		break;
 	case 0x43d:
-		uint8_t base = frame.data[0] * 3;
-		if (base >= nitems(byd_cells))
-			break;
-
+		k = frame.data[0] * 3;
 		for (int i = 0; i < 3; i++) {
+			unsigned int key = k + i;
+			if (key >= sc->ncell)
+				break;
+
 			batgw_kv_update(bg, "battery",
-			    byd_cells + base + i,
-			    can_letoh16(&frame, 1 + (2 * i)));
+			    sc->cell + key, can_letoh16(&frame, 1 + (2 * i)));
 		}
 		break;
 	case 0x444:
-		byd_kv_update(bg, BYD_VOLTAGE, can_letoh16(&frame, 0));
+		batgw_kv_update(bg, "battery",
+		    &sc->kvs[BYD_KV_VOLTAGE], can_letoh16(&frame, 0));
 		break;
-#endif
 	case 0x447:
-		uint16_t soc = can_letoh16(&frame, 4);
-		batgw_b_set_soc_c_pct(bg, soc * 10);
-		printf("soc %u.%u%%\n", soc / 10, soc % 10);
-		printf("lo temp? %u\n", frame.data[1] - 40);
-		printf("hi temp? %u\n", frame.data[3] - 40);
+		uv = can_letoh16(&frame, 4);
+		batgw_b_set_soc_c_pct(bg, uv * 10);
+		batgw_kv_update(bg, "battery",
+		    &sc->kvs[BYD_KV_SOC], uv);
+		//printf("lo temp? %u\n", frame.data[1] - 40);
+		//printf("hi temp? %u\n", frame.data[3] - 40);
 		break;
 	case 0x7ef:
 		if (frame.data[0] == 0x10) {
@@ -410,66 +484,83 @@ byd_can_recv(int fd, short events, void *arg)
 
 		switch (can_betoh16(&frame, 2)) {
 		case BYD_PID_BATTERY_SOC:
-//			printf("pid soc %u\n", frame.data[4]);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_SOC], frame.data[4]);
 			break;
 		case BYD_PID_BATTERY_VOLTAGE:
-			printf("pid voltage %u\n", can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_b_set_voltage_dv(bg, uv * 10);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_VOLTAGE], uv);
 			break;
 		case BYD_PID_BATTERY_CURRENT:
-			printf("pid current %.1f\n",
-			    (can_letoh16(&frame, 4) - 5000) / 10.0);
+			sv = can_letoh16(&frame, 4);
+			sv -= 5000;
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_CURRENT], sv);
 			break;
 		case BYD_PID_CELL_TEMP_MIN:
-			batgw_b_set_min_temp_dc(bg, bydtodegc(&frame, 4) * 10);
-//			byd_kv_update(bg, BYD_MIN_TEMP,
-//			    byd2degc(&frame, 4));
-			printf("pid cell temp min %u\n", frame.data[4] - 40);
+			sv = bydtodegc(&frame, 4);
+			batgw_b_set_min_temp_dc(bg, sv * 10);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_TEMP_MIN], sv);
 			break;
 		case BYD_PID_CELL_TEMP_MAX:
-			batgw_b_set_max_temp_dc(bg, bydtodegc(&frame, 4) * 10);
-//			byd_kv_update(bg, BYD_MAX_TEMP,
-//			    byd2degc(&frame, 4));
-			printf("pid cell temp max %u\n", frame.data[4] - 40);
+			sv = bydtodegc(&frame, 4);
+			batgw_b_set_max_temp_dc(bg, sv * 10);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_TEMP_MAX], sv);
 			break;
 		case BYD_PID_CELL_TEMP_AVG:
-			batgw_b_set_avg_temp_dc(bg, bydtodegc(&frame, 4) * 10);
-//			byd_kv_update(bg, BYD_AVG_TEMP,
-//			    byd2degc(&frame, 4));
-			printf("pid cell temp avg %u\n", frame.data[4] - 40);
+			sv = bydtodegc(&frame, 4);
+			batgw_b_set_avg_temp_dc(bg, sv * 10);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_TEMP_AVG], sv);
 			break;
 		case BYD_PID_CELL_MV_MIN:
-			printf("pid cell mv min %u\n", can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_MV_MIN], uv);
 			break;
 		case BYD_PID_CELL_MV_MAX:
-			printf("pid cell mv max %u\n", can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_MV_MAX], uv);
 			break;
 		case BYD_PID_MAX_CHARGE_POWER:
-			printf("pid max charge power %uW\n",
-			    can_letoh16(&frame, 4) * 100);
+			uv = can_letoh16(&frame, 4) * 100;
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_CHARGE_POWER], uv);
 			break;
 		case BYD_PID_MAX_DISCHARGE_POWER:
-			printf("pid max discharge power %uW\n",
-			    can_letoh16(&frame, 4) * 100);
+			uv = can_letoh16(&frame, 4) * 100;
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_DISCHARGE_POWER], uv);
 			break;
 		case BYD_PID_CHARGE_TIMES:
-			printf("pid charge times %u\n",
-			    can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_CHARGE_COUNT], uv);
 			break;
 		case BYD_PID_TOTAL_CHARGED_AH:
-			printf("pid total charged ah %u\n",
-			    can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_CHARGED_AH], uv);
 			break;
 		case BYD_PID_TOTAL_DISCHARGED_AH:
-			printf("pid total discharged ah %u\n",
-			    can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_DISCHARGED_AH], uv);
 			break;
 		case BYD_PID_TOTAL_CHARGED_KWH:
-			printf("pid total charged kwh %u\n",
-			    can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_CHARGED_KWH], uv);
 			break;
 		case BYD_PID_TOTAL_DISCHARGED_KWH:
-			printf("pid total discharged kwh %u\n",
-			    can_letoh16(&frame, 4));
+			uv = can_letoh16(&frame, 4);
+			batgw_kv_update(bg, "battery",
+			    &sc->kvs[BYD_KV_PID_DISCHARGED_KWH], uv);
 			break;
 		}
 		break;

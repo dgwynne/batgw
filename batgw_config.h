@@ -49,6 +49,7 @@ struct batgw_config_battery {
 
 	unsigned int	 rated_capacity_ah;
 	unsigned int	 rated_voltage_dv;
+	unsigned int	 rated_capacity_wh;
 
 	unsigned int	 min_voltage_dv;
 	unsigned int	 max_voltage_dv;

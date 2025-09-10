@@ -51,6 +51,13 @@ struct batgw_mqtt;
 struct batgw_b_state {
 	unsigned int		 bs_running;
 
+	unsigned int		 bs_rated_capacity_ah;
+	unsigned int		 bs_rated_voltage_dv;
+	unsigned int		 bs_rated_capacity_wh;
+
+	unsigned int		 bs_min_voltage_dv;
+	unsigned int		 bs_max_voltage_dv;
+
 	unsigned int		 bs_valid;
 #define BATGW_B_VALID_SOC		(1 << 0)
 #define BATGW_B_VALID_VOLTAGE		(1 << 1)
@@ -60,6 +67,7 @@ struct batgw_b_state {
 #define BATGW_B_VALID_MAX_TEMP		(1 << 5)
 #define BATGW_B_VALID_AVG_TEMP		(1 << 6)
 
+
         unsigned int             bs_soc_cpct;
         unsigned int             bs_voltage_dv;
         unsigned int             bs_max_charge_w;
@@ -68,6 +76,10 @@ struct batgw_b_state {
         int                      bs_min_temp_dc;
         int                      bs_max_temp_dc;
         int                      bs_avg_temp_dc;
+};
+
+struct batgw_i_state {
+	unsigned int		 is_running;
 };
 
 struct batgw {
@@ -86,11 +98,12 @@ struct batgw {
 
 	const struct batgw_inverter *
 				 bg_inverter;
-	void			*bg_inverter_state;
+	void			*bg_inverter_sc;
+	struct batgw_i_state	 bg_inverter_state;
 };
 
-extern const struct batgw_battery byd_battery;
-//extern const struct batgw_inverter byd_inverter;
+extern const struct batgw_battery battery_byd;
+extern const struct batgw_inverter inverter_byd_can;
 
 static void	can_recv(int, short, void *);
 static void	can_poll(int, short, void *);
@@ -156,8 +169,13 @@ main(int argc, char *argv[])
 	if (conf == NULL)
 		exit(1);
 
-	bg->bg_battery = &byd_battery; /* XXX */
+	bg->bg_battery = &battery_byd; /* XXX */
+	bg->bg_inverter = &inverter_byd_can; /* XXX */
+
 	if (bg->bg_battery->b_check(&conf->battery) != 0)
+		return (1);
+
+	if (bg->bg_inverter->i_check(&conf->inverter) != 0)
 		return (1);
 
 	if (confcheck && !bg->bg_verbose) {
@@ -188,6 +206,7 @@ main(int argc, char *argv[])
 	}
 
 	bg->bg_battery->b_config(&conf->battery);
+	bg->bg_inverter->i_config(&conf->inverter);
 
 	if (confcheck) {
 		dump_config(conf);
@@ -202,13 +221,13 @@ main(int argc, char *argv[])
 		errx(1, "event_base_new failed");
 
 	bg->bg_battery_sc = bg->bg_battery->b_attach(bg);
-
-	//bg->bg_inverter = &byd_inverter; /* XXX */
+	bg->bg_inverter_sc = bg->bg_inverter->i_attach(bg);
 
 	if (mqttconf != NULL)
 		batgw_mqtt_init(bg);
 
 	bg->bg_battery->b_dispatch(bg, bg->bg_battery_sc);
+	bg->bg_inverter->i_dispatch(bg, bg->bg_inverter_sc);
 
 	event_base_dispatch(bg->bg_evbase);
 
@@ -803,48 +822,54 @@ batgw_mqtt_teleperiod(int nil, short events, void *arg)
 	struct batgw *bg = arg;
 	const struct batgw_config_mqtt *mqttconf = bg->bg_conf->mqtt;
 	struct batgw_mqtt *bgm = bg->bg_mqtt;
-	static const char hi[] = "battery-gateway/hi";
-	static const char ho[] = "hi";
 
 	batgw_evtimer_add(bgm->ev_to_teleperiod, mqttconf->teleperiod);
 
-	batgw_mqtt_publish(bg, hi, sizeof(hi) - 1, ho, sizeof(ho) - 1);
-
-#if 0
-	for (i = 0; i < nitems(byd_temps); i++) {
-		kv = &byd_temps[i];
-		if (kv->kv_v == INT_MIN)
-			continue;
-		batgw_kv_publish(bg, "battery", kv);
-	}
-
-	for (i = 0; i < nitems(byd_kvs); i++) {
-		kv = &byd_kvs[i];
-		if (kv->kv_v == INT_MIN)
-			continue;
-		batgw_kv_publish(bg, "battery", kv);
-	}
-
-	for (i = 0; i < nitems(byd_cells); i++) {
-		kv = &byd_cells[i];
-		if (kv->kv_v == INT_MIN)
-			continue;
-		batgw_kv_publish(bg, "battery", kv);
-	}
-#endif
+	bg->bg_battery->b_teleperiod(bg, bg->bg_battery_sc);
 }
 
-#if 0
 static const char *const batgw_kv_type_names[KV_T_MAXTYPE] = {
-	[KV_T_TEMPERATURE] =		"temperature",
+	[KV_T_TEMP] =			"temperature",
 	[KV_T_VOLTAGE] =		"voltage",
+	[KV_T_CURRENT] =		"current",
+	[KV_T_POWER] =			"power",
+	[KV_T_AMPHOUR] =		"amphour",
+	[KV_T_WATTHOUR] =		"watthour",
+	[KV_T_ENERGY] =			"energy",
 	[KV_T_PERCENT] =		"percent",
+	[KV_T_RAW] =			"raw",
 };
 
-static void
+void
+batgw_kv_init(struct batgw_kv *kv, const char *key, enum batgw_kv_type type,
+    unsigned int precision)
+{
+	memset(kv, 0, sizeof(*kv));
+	if (key != NULL) {
+		if (strlcpy(kv->kv_key, key, sizeof(kv->kv_key)) >=
+		    sizeof(kv->kv_key)) {
+			warnx("%s: key too long", __func__);
+			abort();
+		}
+	}
+	kv->kv_v = INT_MIN;
+	kv->kv_type = type;
+	kv->kv_precision = precision;
+}
+
+void
+batgw_kv_init_tpl(struct batgw_kv *kv, const struct batgw_kv_tpl *tpl)
+{
+	batgw_kv_init(kv, tpl->kv_key, tpl->kv_type, tpl->kv_precision);
+}
+
+void
 batgw_kv_publish(struct batgw *bg,
     const char *scope, const struct batgw_kv *kv)
 {
+	const struct batgw_config_mqtt *mqttconf = bg->bg_conf->mqtt;
+	struct batgw_mqtt *bgm = bg->bg_mqtt;
+
 	char t[128];
 	int tlen;
 	char p[128];
@@ -852,7 +877,12 @@ batgw_kv_publish(struct batgw *bg,
 	int div = 1;
 	int len;
 
-	tlen = snprintf(t, sizeof(t), "%s", bg->bg_mqtt.devname);
+	if (!batgw_mqtt_running(bg))
+		return;
+
+	/* XXX this should handle snprintf return values better */
+
+	tlen = snprintf(t, sizeof(t), "%s", mqttconf->topic);
 	if (scope != NULL) {
 		len = snprintf(t + tlen, sizeof(t) - tlen,
 		    "/%s", scope);
@@ -878,10 +908,10 @@ batgw_kv_publish(struct batgw *bg,
 		    kv->kv_v / div, kv->kv_precision, kv->kv_v % div);
 	}
 
-	mqtt_publish(bg->bg_mqtt->conn, t, tlen, p, plen, MQTT_QOS0, 0);
+	mqtt_publish(bgm->conn, t, tlen, p, plen, MQTT_QOS0, 0);
 }
 
-static void
+void
 batgw_kv_update(struct batgw *bg, const char *scope,
     struct batgw_kv *kv, int v)
 {
@@ -891,24 +921,15 @@ batgw_kv_update(struct batgw *bg, const char *scope,
 		return;
 	kv->kv_v = v;
 
-#if 1
 	if (event_gettime_monotonic(bg->bg_evbase, &tv) == 0) {
-		if ((tv.tv_sec - kv->kv_updated) < 10)
+		unsigned int now = (unsigned int)tv.tv_sec;
+		if ((now - kv->kv_updated) < 10)
 			return;
-		kv->kv_updated = tv.tv_sec;
+		kv->kv_updated = now;
 	}
-#endif
 
 	batgw_kv_publish(bg, scope, kv);
 }
-
-static void
-byd_kv_update(struct batgw *bg, enum byd_kv_map e, int v)
-{
-	batgw_kv_update(bg, "battery", &byd_kvs[e], v);
-}
-
-#endif
 
 /*
  * CAN related code
@@ -952,6 +973,26 @@ can_betoh16(const struct can_frame *frame, size_t o)
 	h16 |= (uint16_t)frame->data[o + 1] << 0;
 
 	return (h16);
+}
+
+uint32_t
+can_betoh32(const struct can_frame *frame, size_t o)
+{
+	uint32_t h32;
+
+	h32 = (uint16_t)frame->data[o + 0] << 24;
+	h32 |= (uint16_t)frame->data[o + 1] << 16;
+	h32 |= (uint16_t)frame->data[o + 2] << 8;
+	h32 |= (uint16_t)frame->data[o + 3] << 0;
+
+	return (h32);
+}
+
+void
+can_htobe16(struct can_frame *frame, size_t o, uint16_t h16)
+{
+	frame->data[o + 0] = h16 >> 8;
+	frame->data[o + 1] = h16 >> 0;
 }
 
 uint16_t
@@ -999,7 +1040,24 @@ void
 batgw_b_set_stopped(struct batgw *bg)
 {
 	bg->bg_battery_state.bs_running = 0;
-	bg->bg_battery_state.bs_valid = 0;
+}
+
+int
+batgw_b_get_running(const struct batgw *bg)
+{
+	return (bg->bg_battery_state.bs_running);
+}
+
+void
+batgw_b_set_rated_capacity_ah(struct batgw *bg, unsigned int ah)
+{
+	bg->bg_battery_state.bs_rated_capacity_ah = ah;
+}
+
+void
+batgw_b_set_rated_voltage_dv(struct batgw *bg, unsigned int dv)
+{
+	bg->bg_battery_state.bs_rated_voltage_dv = dv;
 }
 
 void
@@ -1007,6 +1065,25 @@ batgw_b_set_soc_c_pct(struct batgw *bg, unsigned int soc)
 {
 	SET(bg->bg_battery_state.bs_valid, BATGW_B_VALID_SOC);
 	bg->bg_battery_state.bs_soc_cpct = soc;
+}
+
+void
+batgw_b_set_min_voltage_dv(struct batgw *bg, unsigned int dv)
+{
+	bg->bg_battery_state.bs_min_voltage_dv = dv;
+}
+
+void
+batgw_b_set_max_voltage_dv(struct batgw *bg, unsigned int dv)
+{
+	bg->bg_battery_state.bs_min_voltage_dv = dv;
+}
+
+void
+batgw_b_set_voltage_dv(struct batgw *bg, unsigned int dv)
+{
+	SET(bg->bg_battery_state.bs_valid, BATGW_B_VALID_VOLTAGE);
+	bg->bg_battery_state.bs_voltage_dv = dv;
 }
 
 void
@@ -1032,6 +1109,30 @@ batgw_b_set_avg_temp_dc(struct batgw *bg, int temp)
 	bs->bs_avg_temp_dc = temp;
 }
 
+const struct batgw_config_inverter *
+batgw_i_config(struct batgw *bg)
+{
+	return (&bg->bg_conf->inverter);
+}
+
+void *
+batgw_i_softc(struct batgw *bg)
+{
+	return (bg->bg_inverter_sc);
+}
+
+void
+batgw_i_set_running(struct batgw *bg)
+{
+	bg->bg_inverter_state.is_running = 1;
+}
+
+void
+batgw_i_set_stopped(struct batgw *bg)
+{
+	bg->bg_inverter_state.is_running = 0;
+}
+
 static inline int
 isset(unsigned int v, unsigned int m)
 {
@@ -1039,9 +1140,61 @@ isset(unsigned int v, unsigned int m)
 }
 
 int
-batgw_i_get_avg_temp_dc(struct batgw *bg, int *tempp)
+batgw_i_get_min_voltage_dv(const struct batgw *bg, unsigned int *dvp)
 {
-	struct batgw_b_state *bs = &bg->bg_battery_state;
+	unsigned int dv = bg->bg_battery_state.bs_min_voltage_dv;
+
+	if (dv != 0) {
+		*dvp = dv;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_max_voltage_dv(const struct batgw *bg, unsigned int *dvp)
+{
+	unsigned int dv = bg->bg_battery_state.bs_min_voltage_dv;
+
+	if (dv != 0) {
+		*dvp = dv;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_soc_cpct(const struct batgw *bg, unsigned int *cpctp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	if (ISSET(bs->bs_valid, BATGW_B_VALID_SOC)) {
+		*cpctp = bs->bs_soc_cpct;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_voltage_dv(const struct batgw *bg, unsigned int *dvp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	if (ISSET(bs->bs_valid, BATGW_B_VALID_VOLTAGE)) {
+		*dvp = bs->bs_voltage_dv;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_avg_temp_dc(const struct batgw *bg, int *tempp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
 	int diff;
 
 	if (ISSET(bs->bs_valid, BATGW_B_VALID_AVG_TEMP)) {
@@ -1056,4 +1209,67 @@ batgw_i_get_avg_temp_dc(struct batgw *bg, int *tempp)
 	diff = bs->bs_max_temp_dc - bs->bs_min_temp_dc;
 	*tempp = bs->bs_min_temp_dc + (diff / 2);
 	return (0);
+}
+
+int
+batgw_i_get_min_temp_dc(const struct batgw *bg, int *tempp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	int diff;
+
+	if (ISSET(bs->bs_valid, BATGW_B_VALID_MIN_TEMP)) {
+		*tempp = bs->bs_min_temp_dc;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_max_temp_dc(const struct batgw *bg, int *tempp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	int diff;
+
+	if (ISSET(bs->bs_valid, BATGW_B_VALID_MAX_TEMP)) {
+		*tempp = bs->bs_max_temp_dc;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_rated_capacity_ah(const struct batgw *bg, unsigned int *ahp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	unsigned int ah = bs->bs_rated_capacity_ah;
+
+	if (ah != 0) {
+		*ahp = ah;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_rated_capacity_wh(const struct batgw *bg, unsigned int *whp)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	unsigned int wh;
+
+	if (bs->bs_rated_capacity_wh != 0) {
+		*whp = bs->bs_rated_capacity_wh;
+		return (0);
+	}
+
+	/* this will be 0 if either or both are 0 */
+	wh = bs->bs_rated_capacity_ah * bs->bs_rated_voltage_dv;
+	if (wh != 0) {
+		*whp = wh / 10;
+		return (0);
+	}
+
+	return (-1);
 }

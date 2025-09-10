@@ -8,6 +8,8 @@ CFLAGS+=	-I${.CURDIR}
 
 SRCS+=	battery/b_byd.c
 
+SRCS+=	inverter/i_byd_can.c
+
 LDADD=-levent -lbsd
 DEBUG=-g
 
