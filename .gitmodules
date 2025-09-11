@@ -1,0 +1,3 @@
+[submodule "amqtt"]
+	path = amqtt
+	url = https://github.com/dgwynne/amqtt.git
