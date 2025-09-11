@@ -51,8 +51,15 @@ Something like this in `/etc/batgw.conf`
 ```
 # the mqtt config is optional
 mqtt {
+	# ipv4|ipv6
 	host "mqtt.local"
-	# teleperiod 60
+	# port "1883"
+	# user "mqttuser" pass "secret"
+	# client id "mqtt-clientid"
+	# topic "battery-gateway"
+	# teleperiod 300
+	# keep alive 30
+	# reconnect 60
 }
 
 battery {
@@ -66,10 +73,20 @@ inverter {
 }
 ```
 
+This steals^Wuses the config parser code/style that's commonly used in
+OpenBSD software.
+
 ## Usage
 
+The CAN interfaces must be configured before they can be used by `batgw`:
+
 ```
-usage: batgw [-nv] [-f batgw.conf]
+# ip link set can0 up type can bitrate 500000 fd off
+# ip link set can1 up type can bitrate 500000 fd off
+```
+
+```
+usage: batgw [-nv] [-D macro=value] [-f batgw.conf]
 ```
 
 ## But why?
