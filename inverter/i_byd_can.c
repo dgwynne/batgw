@@ -19,8 +19,11 @@
 
 #include "../compat.h"
 
+#include <sys/types.h>
+
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <err.h>
 
 #include <linux/can.h>
@@ -83,6 +86,9 @@ struct byd_can_i_softc {
 	struct event		*can_wdog;
 
 	struct event		*can_ivals[BYD_CAN_IVAL_COUNT];
+
+	time_t			 inverter_time;
+	struct batgw_kv		 inverter_temp;
 };
 
 static void	byd_can_i_poll(int, short, void *);
@@ -157,6 +163,8 @@ byd_can_i_attach(struct batgw *bg)
 			errx(1, "new byd can inverter ival %zu failed", i);
 	}
 
+	batgw_kv_init(&sc->inverter_temp, NULL, KV_T_TEMP, 1);
+
 	return (sc);
 }
 
@@ -172,6 +180,8 @@ static void
 byd_can_i_teleperiod(struct batgw *bg, void *arg)
 {
 	struct byd_can_i_softc *sc = arg;
+
+	batgw_kv_publish(bg, "inverter", &sc->inverter_temp);
 }
 
 static void
@@ -337,15 +347,17 @@ byd_can_i_recv(int fd, short events, void *arg)
 		break;
 
 	case 0x091:
-		printf("i voltage %u\n", can_betoh16(&frame, 0));
-		printf("i current %u\n", can_betoh16(&frame, 2));
-		printf("i temp %u\n", can_betoh16(&frame, 4));
+		//printf("i voltage %u\n", can_betoh16(&frame, 0));
+		//printf("i current %u\n", can_betoh16(&frame, 2));
+		batgw_kv_update(bg, "inverter",
+		    &sc->inverter_temp, can_betoh16(&frame, 4));
 		break;
 	case 0x0d1:
-		printf("i soc %u\n", can_betoh16(&frame, 0));
+		/* use gmtime to pull this apart event though it's not UTC */
+		//printf("i soc %u\n", can_betoh16(&frame, 0));
 		break;
 	case 0x111:
-		printf("i timestamp %u\n", can_betoh32(&frame, 0));
+		sc->inverter_time = can_betoh32(&frame, 0);
 		break;
 	}
 }
@@ -358,6 +370,7 @@ byd_can_i_2s(int nil, short events, void *arg)
 	struct can_frame frame = { .can_id = 0x110, .len = 8 };
 	ssize_t rv;
 	unsigned int min_dv, max_dv;
+	unsigned int safety;
 
 	evtimer_add(sc->can_ivals[BYD_CAN_IVAL_2S], &byd_2s);
 
@@ -365,8 +378,15 @@ byd_can_i_2s(int nil, short events, void *arg)
 	    batgw_i_get_max_voltage_dv(bg, &max_dv) != 0)
 		return;
 
+	safety = batgw_i_get_safety(bg);
+
 	can_htobe16(&frame, 0, max_dv - BYD_HVS_VOLTAGE_OFFSET_DV);
 	can_htobe16(&frame, 2, min_dv + BYD_HVS_VOLTAGE_OFFSET_DV);
+
+	/* max discharge current dA */
+	can_htobe16(&frame, 4, batgw_i_get_discharge_da(bg, safety));
+	/* min discharge current dA */
+	can_htobe16(&frame, 6, batgw_i_get_charge_da(bg, safety));
 
 	rv = send(sc->can, &frame, sizeof(frame), 0);
 	if (rv == -1)
@@ -436,7 +456,6 @@ byd_can_i_10s(int nil, short events, void *arg)
 	struct can_frame frame = { .len = 8 };
 	ssize_t rv;
 
-	lwarnx("%s", __func__);
 	evtimer_add(sc->can_ivals[BYD_CAN_IVAL_10S], &byd_10s);
 
 	byd_can_send_150(bg, sc);
@@ -456,7 +475,6 @@ byd_can_i_60s(int nil, short events, void *arg)
 	};
 	ssize_t rv;
 
-	lwarnx("%s", __func__);
 	evtimer_add(sc->can_ivals[BYD_CAN_IVAL_60S], &byd_60s);
 
 	rv = send(sc->can, &frame, sizeof(frame), 0);

@@ -546,11 +546,13 @@ byd_can_recv(int fd, short events, void *arg)
 			break;
 		case BYD_PID_MAX_CHARGE_POWER:
 			uv = can_letoh16(&frame, 4) * 100;
+			batgw_b_set_charge_w(bg, uv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_CHARGE_POWER], uv);
 			break;
 		case BYD_PID_MAX_DISCHARGE_POWER:
 			uv = can_letoh16(&frame, 4) * 100;
+			batgw_b_set_discharge_w(bg, uv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_DISCHARGE_POWER], uv);
 			break;

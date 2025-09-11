@@ -94,6 +94,9 @@ void		 batgw_b_set_min_temp_dc(struct batgw *, int);
 void		 batgw_b_set_max_temp_dc(struct batgw *, int);
 void		 batgw_b_set_avg_temp_dc(struct batgw *, int);
 
+void		 batgw_b_set_charge_w(struct batgw *, unsigned int);
+void		 batgw_b_set_discharge_w(struct batgw *, unsigned int);
+
 int		 batgw_b_get_running(const struct batgw *);
 
 void		*batgw_i_softc(struct batgw *);
@@ -116,11 +119,14 @@ int		 batgw_i_get_min_voltage_dv(const struct batgw *,
 		     unsigned int *);
 int		 batgw_i_get_max_voltage_dv(const struct batgw *,
 		     unsigned int *);
-int		 batgw_i_get_charge_da(struct batgw *, unsigned int *);
-int		 batgw_i_get_discharge_da(struct batgw *, unsigned int *);
 int		 batgw_i_get_soc_cpct(const struct batgw *, unsigned int *);
 int		 batgw_i_get_voltage_dv(const struct batgw *, unsigned int *);
 int		 batgw_i_get_current_da(struct batgw *, int *);
+
+unsigned int	 batgw_i_get_safety(struct batgw *);
+int		 batgw_i_issafe(struct batgw *, unsigned int);
+unsigned int	 batgw_i_get_charge_da(struct batgw *, unsigned int);
+unsigned int	 batgw_i_get_discharge_da(struct batgw *, unsigned int);
 
 int		 can_open(const char *, const char *);
 uint16_t	 can_betoh16(const struct can_frame *, size_t);

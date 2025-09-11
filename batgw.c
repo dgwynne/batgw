@@ -58,11 +58,12 @@ struct batgw_b_state {
 	unsigned int		 bs_min_voltage_dv;
 	unsigned int		 bs_max_voltage_dv;
 
+        unsigned int             bs_max_charge_w;
+        unsigned int             bs_max_discharge_w;
+
 	unsigned int		 bs_valid;
 #define BATGW_B_VALID_SOC		(1 << 0)
 #define BATGW_B_VALID_VOLTAGE		(1 << 1)
-#define BATGW_B_VALID_MAX_CHARGE	(1 << 2)
-#define BATGW_B_VALID_MAX_DISCHARGE	(1 << 3)
 #define BATGW_B_VALID_MIN_TEMP		(1 << 4)
 #define BATGW_B_VALID_MAX_TEMP		(1 << 5)
 #define BATGW_B_VALID_AVG_TEMP		(1 << 6)
@@ -70,8 +71,6 @@ struct batgw_b_state {
 
         unsigned int             bs_soc_cpct;
         unsigned int             bs_voltage_dv;
-        unsigned int             bs_max_charge_w;
-        unsigned int             bs_max_discharge_w;
 
         int                      bs_min_temp_dc;
         int                      bs_max_temp_dc;
@@ -115,6 +114,9 @@ static void	batgw_mqtt_init(struct batgw *);
 
 static struct batgw _bg;
 
+static unsigned int v_safe;
+static unsigned int v_unsafe;
+
 __dead static void
 usage(void)
 {
@@ -138,6 +140,11 @@ main(int argc, char *argv[])
 
 	struct batgw_config *conf;
 	struct batgw_config_mqtt *mqttconf;
+
+	v_safe = arc4random();
+	do {
+		v_unsafe = arc4random();
+	} while (v_unsafe == v_safe);
 
 	while ((ch = getopt(argc, argv, "dD:f:nv")) != -1) {
 		switch (ch) {
@@ -1109,6 +1116,20 @@ batgw_b_set_avg_temp_dc(struct batgw *bg, int temp)
 	bs->bs_avg_temp_dc = temp;
 }
 
+void
+batgw_b_set_charge_w(struct batgw *bg, unsigned int w)
+{
+	struct batgw_b_state *bs = &bg->bg_battery_state;
+	bs->bs_max_charge_w = w;
+}
+
+void
+batgw_b_set_discharge_w(struct batgw *bg, unsigned int w)
+{
+	struct batgw_b_state *bs = &bg->bg_battery_state;
+	bs->bs_max_discharge_w = w;
+}
+
 const struct batgw_config_inverter *
 batgw_i_config(struct batgw *bg)
 {
@@ -1272,4 +1293,65 @@ batgw_i_get_rated_capacity_wh(const struct batgw *bg, unsigned int *whp)
 	}
 
 	return (-1);
+}
+
+unsigned int
+batgw_i_get_safety(struct batgw *bg)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	if (!bs->bs_running)
+		return (v_unsafe);
+
+	return (v_safe);
+}
+
+int
+batgw_i_issafe(struct batgw *bg, unsigned int safety)
+{
+	if (safety == v_safe)
+		return (1);
+	if (safety == v_unsafe)
+		return (0);
+	abort();
+}
+
+static unsigned int
+batgw_get_safety_limited_da(struct batgw *bg, unsigned int safety,
+    unsigned int w, unsigned int wlimit)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	unsigned int dv, da;
+
+	if (!batgw_i_issafe(bg, safety))
+		return (0);
+
+	dv = bs->bs_voltage_dv;
+	if (dv == 0)
+		return (0);
+
+	if (w > 10000)
+		w = 10000;
+
+	da = (w * 100) / dv;
+
+	return (da);
+}
+
+unsigned int
+batgw_i_get_charge_da(struct batgw *bg, unsigned int safety)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	return (batgw_get_safety_limited_da(bg, safety,
+	    bs->bs_max_charge_w, 10000));
+}
+
+unsigned int
+batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	return (batgw_get_safety_limited_da(bg, safety,
+	    bs->bs_max_discharge_w, 10000));
 }
