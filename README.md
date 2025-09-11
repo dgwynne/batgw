@@ -49,6 +49,18 @@ This requires:
 - `libevent-dev`
 - `libbsd-dev`
 
+```
+$ bmake obj
+[Creating objdir obj...]
+$ bmake
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF batgw.d -MT batgw.o           -c /home/dlg/trees/batgw/batgw.c
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF log.d -MT log.o           -c /home/dlg/trees/batgw/log.c
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF amqtt.d -MT amqtt.o           -c /home/dlg/trees/batgw/amqtt.c
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF parse.d -MT parse.o           -c parse.c
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF b_byd.d -MT b_byd.o           -c /home/dlg/trees/batgw/battery/b_byd.c
+cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF i_byd_can.d -MT i_byd_can.o           -c /home/dlg/trees/batgw/inverter/i_byd_can.c
+cc -pipe           -o batgw  batgw.o log.o amqtt.o parse.o b_byd.o i_byd_can.o  -levent -lbsd
+```
 ## Configuration
 
 Something like this in `/etc/batgw.conf`
@@ -92,6 +104,10 @@ The CAN interfaces must be configured before they can be used by `batgw`:
 
 ```
 usage: batgw [-nv] [-D macro=value] [-f batgw.conf]
+```
+
+```
+$ ./obj/batgw
 ```
 
 ## But why?
