@@ -111,6 +111,11 @@ usage: batgw [-nv] [-D macro=value] [-f batgw.conf]
 $ ./obj/batgw
 ```
 
+## Todo
+
+- implement daemoonisation (`daemon()`)
+- add support for closing (and opening) the BYD contactors
+
 ## But why?
 
 I wanted to understand how this stuff worked.
