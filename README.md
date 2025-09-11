@@ -27,7 +27,8 @@ interfaces, eg:
 
 In particular, the SocketCAN subsystem in Linux provides a standardised
 programming interface for talking to CAN devices, and tools that assist
-in the observation and debugging of this communication.
+in the observation and debugging of this communication even while
+`batgw` is running.
 
 ## Software Design
 
@@ -37,7 +38,7 @@ inverter as robust as possible.
 `batgw` uses libevent to handle multiplexing of communication between
 the two CAN interfaces.
 
-The program can be configured to connect to an MQTT broker and report
+The program can be configured to connect to an MQTT broker to report
 metrics from the battery and inverter.
 
 ## Building
