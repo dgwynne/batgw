@@ -48,6 +48,7 @@ This requires:
 - `bmake`
 - `libevent-dev`
 - `libbsd-dev`
+- `byacc`
 
 ```
 $ bmake obj
