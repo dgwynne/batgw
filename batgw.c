@@ -943,6 +943,12 @@ batgw_kv_update(struct batgw *bg, const char *scope,
 	batgw_kv_publish(bg, scope, kv);
 }
 
+int
+batgw_kv_get(const struct batgw_kv *kv)
+{
+	return (kv->kv_v);
+}
+
 /*
  * CAN related code
  */

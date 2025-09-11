@@ -48,6 +48,7 @@ void	batgw_kv_update(struct batgw *, const char *,
 	    struct batgw_kv *, int);
 void	batgw_kv_publish(struct batgw *, const char *,
 	    const struct batgw_kv *);
+int	batgw_kv_get(const struct batgw_kv *);
 
 struct batgw_kv_tpl {
 	const char		*kv_key;
