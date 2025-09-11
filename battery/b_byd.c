@@ -88,6 +88,7 @@ enum byd_kvs {
 	BYD_KV_PID_TEMP_AVG,
 	BYD_KV_PID_MV_MIN,
 	BYD_KV_PID_MV_MAX,
+	BYD_KV_PID_MV_DELTA,
 	BYD_KV_PID_DISCHARGE_POWER,
 	BYD_KV_PID_CHARGE_POWER,
 	BYD_KV_PID_CHARGE_COUNT,
@@ -124,6 +125,8 @@ static const struct batgw_kv_tpl byd_kvs_tpl[BYD_KV_COUNT] = {
 		{ "cell-min",		KV_T_VOLTAGE,	3 },
 	[BYD_KV_PID_MV_MAX] =
 		{ "cell-max",		KV_T_VOLTAGE,	3 },
+	[BYD_KV_PID_MV_DELTA] =
+		{ "cell-delta",		KV_T_VOLTAGE,	3 },
 	[BYD_KV_PID_DISCHARGE_POWER] =
 		{ "max-discharge",	KV_T_POWER,	0 },
 	[BYD_KV_PID_CHARGE_POWER] =
@@ -545,6 +548,12 @@ byd_can_recv(int fd, short events, void *arg)
 			batgw_b_set_max_cell_voltage_mv(bg, uv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_MV_MAX], uv);
+
+			sv = uv - batgw_kv_get(&sc->kvs[BYD_KV_PID_MV_MIN]);
+			if (sv >= 0) {
+				batgw_kv_update(bg, "battery",
+				    &sc->kvs[BYD_KV_PID_MV_DELTA], sv);
+			}
 			break;
 		case BYD_PID_MAX_CHARGE_POWER:
 			uv = can_letoh16(&frame, 4) * 100;
