@@ -4,6 +4,7 @@ SRCS+=		log.c amqtt.c
 MAN=
 
 SRCS+=		parse.y
+CLEANFILES+=	parse.c y.tab.h
 CFLAGS+=	-I${.CURDIR}
 
 SRCS+=	battery/b_byd.c

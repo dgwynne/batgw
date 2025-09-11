@@ -57,6 +57,8 @@ $ bmake
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF batgw.d -MT batgw.o           -c /home/dlg/trees/batgw/batgw.c
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF log.d -MT log.o           -c /home/dlg/trees/batgw/log.c
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF amqtt.d -MT amqtt.o           -c /home/dlg/trees/batgw/amqtt.c
+yacc -d /home/dlg/trees/batgw/parse.y
+mv y.tab.c parse.c
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF parse.d -MT parse.o           -c parse.c
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF b_byd.d -MT b_byd.o           -c /home/dlg/trees/batgw/battery/b_byd.c
 cc -pipe -g -I/home/dlg/trees/batgw                   -MD -MF i_byd_can.d -MT i_byd_can.o           -c /home/dlg/trees/batgw/inverter/i_byd_can.c
