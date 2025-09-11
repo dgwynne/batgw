@@ -536,11 +536,13 @@ byd_can_recv(int fd, short events, void *arg)
 			break;
 		case BYD_PID_CELL_MV_MIN:
 			uv = can_letoh16(&frame, 4);
+			batgw_b_set_min_cell_voltage_mv(bg, uv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_MV_MIN], uv);
 			break;
 		case BYD_PID_CELL_MV_MAX:
 			uv = can_letoh16(&frame, 4);
+			batgw_b_set_max_cell_voltage_mv(bg, uv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_MV_MAX], uv);
 			break;
