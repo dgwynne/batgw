@@ -1,7 +1,7 @@
 # Battery Gateway
 
 This software acts as a "gateway" that translates messages between an
-EV battery and a solar inverter.
+EV battery and a hybrid solar inverter.
 
 This currently only supports translating between a BYD Atto 3 Extended
 Range (60KWh) battery pack and the BYD "Battery-Box Premium HVS"
