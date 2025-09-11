@@ -9,6 +9,10 @@ protocols.
 
 *WARNING* this probably only works for the author.
 
+`batgw` is obviously inspired by
+[Battery-Emulator](https://github.com/dalathegreat/Battery-Emulator/).
+Battery-Emulator is a much more complete and mature option.
+
 ## Platform
 
 This uses a Raspberry Pi running Raspberry Pi OS as the software platform
