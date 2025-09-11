@@ -7,7 +7,7 @@ This currently only supports translating between a BYD Atto 3 Extended
 Range (60KWh) battery pack and the BYD "Battery-Box Premium HVS"
 protocols.
 
-*WARNING* this probably only works for the author.
+**WARNING** this probably only works for the author.
 
 `batgw` is obviously inspired by
 [Battery-Emulator](https://github.com/dalathegreat/Battery-Emulator/).
