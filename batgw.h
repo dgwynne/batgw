@@ -93,6 +93,8 @@ void		 batgw_b_set_voltage_dv(struct batgw *, unsigned int);
 void		 batgw_b_set_min_temp_dc(struct batgw *, int);
 void		 batgw_b_set_max_temp_dc(struct batgw *, int);
 void		 batgw_b_set_avg_temp_dc(struct batgw *, int);
+void		 batgw_b_set_min_cell_voltage_mv(struct batgw *, unsigned int);
+void		 batgw_b_set_max_cell_voltage_mv(struct batgw *, unsigned int);
 
 void		 batgw_b_set_charge_w(struct batgw *, unsigned int);
 void		 batgw_b_set_discharge_w(struct batgw *, unsigned int);

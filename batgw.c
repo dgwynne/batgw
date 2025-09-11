@@ -61,6 +61,9 @@ struct batgw_b_state {
         unsigned int             bs_max_charge_w;
         unsigned int             bs_max_discharge_w;
 
+	unsigned int		 bs_min_cell_voltage_mv;
+	unsigned int		 bs_max_cell_voltage_mv;
+
 	unsigned int		 bs_valid;
 #define BATGW_B_VALID_SOC		(1 << 0)
 #define BATGW_B_VALID_VOLTAGE		(1 << 1)
@@ -99,6 +102,8 @@ struct batgw {
 				 bg_inverter;
 	void			*bg_inverter_sc;
 	struct batgw_i_state	 bg_inverter_state;
+
+	const char		*bg_unsafe_reason;
 };
 
 extern const struct batgw_battery battery_byd;
@@ -1130,6 +1135,20 @@ batgw_b_set_discharge_w(struct batgw *bg, unsigned int w)
 	bs->bs_max_discharge_w = w;
 }
 
+void
+batgw_b_set_min_cell_voltage_mv(struct batgw *bg, unsigned int mv)
+{
+	struct batgw_b_state *bs = &bg->bg_battery_state;
+	bs->bs_min_cell_voltage_mv = mv;
+}
+
+void
+batgw_b_set_max_cell_voltage_mv(struct batgw *bg, unsigned int mv)
+{
+	struct batgw_b_state *bs = &bg->bg_battery_state;
+	bs->bs_max_cell_voltage_mv = mv;
+}
+
 const struct batgw_config_inverter *
 batgw_i_config(struct batgw *bg)
 {
@@ -1299,11 +1318,60 @@ unsigned int
 batgw_i_get_safety(struct batgw *bg)
 {
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
+	const char *reason;
+	int diff;
 
-	if (!bs->bs_running)
-		return (v_unsafe);
+	if (!bs->bs_running) {
+		reason = "battery is not running";
+		goto unsafe;
+	}
+
+	/*
+	 * XXX call into the battery driver here so it can do it's own
+	 * checks and prepare for the ones below
+	 */
+
+#define CHECK(_c, _r) do {	\
+	if (!(_c)) {		\
+		reason = (_r);	\
+		goto unsafe;	\
+	}			\
+} while (0)
+
+	CHECK(ISSET(bs->bs_valid, BATGW_B_VALID_MIN_TEMP),
+	    "minimum battery temperature has not been reported");
+	CHECK(ISSET(bs->bs_valid, BATGW_B_VALID_MAX_TEMP),
+	    "maximum battery temperature has not been reported");
+
+	CHECK(bs->bs_min_temp_dc >= -250 /* bconf->min_temp_dc */,
+	    "battery is too cold");
+	CHECK(bs->bs_max_temp_dc <= 500 /* bconf->max_temp_dc */,
+	    "battery is too hot");
+	CHECK(bs->bs_min_temp_dc <= bs->bs_max_temp_dc,
+	    "battery min temp is higher than max temp");
+	diff = bs->bs_max_temp_dc - bs->bs_min_temp_dc;
+	CHECK(diff < 150 /* bconf->dev_tmp_dc */,
+	    "battery temperature difference is too high");
+
+	CHECK(bs->bs_min_cell_voltage_mv != 0,
+	    "minimum cell voltage has not been reported");
+	CHECK(bs->bs_max_cell_voltage_mv != 0,
+	    "maximum cell voltage has not been reported");
+	CHECK(bs->bs_min_cell_voltage_mv <= bs->bs_max_cell_voltage_mv,
+	    "min cell voltage is higher than max cell voltage");
+	diff = bs->bs_max_cell_voltage_mv - bs->bs_min_cell_voltage_mv;
+	CHECK(diff < bconf->dev_cell_voltage_mv,
+	    "battery cell voltage difference is too high");
 
 	return (v_safe);
+
+unsafe:
+	if (bg->bg_unsafe_reason != reason) {
+		lwarnx("battery unsafe: %s", reason);
+		bg->bg_unsafe_reason = reason;
+	}
+	return (v_unsafe);
 }
 
 int
