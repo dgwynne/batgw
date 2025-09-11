@@ -238,15 +238,6 @@ mqttopts	: HOST STRING {
 			}
 			conf->mqtt->user = $2;
 		}
-		| PASSWORD STRING {
-			if (conf->mqtt->user != NULL) {
-				yyerror("mqtt password "
-				    "is already configured");
-				free($2);
-				YYERROR;
-			}
-			conf->mqtt->pass = $2;
-		}
 		| CLIENT ID STRING {
 			if (conf->mqtt->clientid != NULL) {
 				yyerror("mqtt client id "
