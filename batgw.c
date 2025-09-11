@@ -1385,14 +1385,11 @@ batgw_i_issafe(struct batgw *bg, unsigned int safety)
 }
 
 static unsigned int
-batgw_get_safety_limited_da(struct batgw *bg, unsigned int safety,
+batgw_get_safety_limited_da(struct batgw *bg,
     unsigned int w, unsigned int wlimit)
 {
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
 	unsigned int dv, da;
-
-	if (!batgw_i_issafe(bg, safety))
-		return (0);
 
 	dv = bs->bs_voltage_dv;
 	if (dv == 0)
@@ -1410,8 +1407,15 @@ unsigned int
 batgw_i_get_charge_da(struct batgw *bg, unsigned int safety)
 {
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 
-	return (batgw_get_safety_limited_da(bg, safety,
+	if (!batgw_i_issafe(bg, safety))
+		return (0);
+
+	if (bs->bs_max_cell_voltage_mv > bconf->max_cell_voltage_mv)
+		return (0);
+
+	return (batgw_get_safety_limited_da(bg,
 	    bs->bs_max_charge_w, 10000));
 }
 
@@ -1419,7 +1423,14 @@ unsigned int
 batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
 {
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 
-	return (batgw_get_safety_limited_da(bg, safety,
+	if (!batgw_i_issafe(bg, safety))
+		return (0);
+
+	if (bs->bs_min_cell_voltage_mv < bconf->max_cell_voltage_mv)
+		return (0);
+
+	return (batgw_get_safety_limited_da(bg,
 	    bs->bs_max_discharge_w, 10000));
 }
