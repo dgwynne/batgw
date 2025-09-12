@@ -326,13 +326,13 @@ byd_can_i_recv(int fd, short events, void *arg)
 		break;
 	}
 
-//	if (batgw_verbose(bg) > 1) {
+	if (batgw_verbose(bg) > 1) {
 		printf("i 0x%03x [%u]", frame.can_id, frame.len);
 		for (i = 0; i < frame.len; i++) {
 			printf(" %02x", frame.data[i]);
 		}
 		printf("\n");
-//	}
+	}
 
 	switch (frame.can_id) {
 	case 0x151:
