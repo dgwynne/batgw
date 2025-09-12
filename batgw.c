@@ -849,6 +849,7 @@ static const char *const batgw_kv_type_names[KV_T_MAXTYPE] = {
 	[KV_T_WATTHOUR] =		"watthour",
 	[KV_T_ENERGY] =			"energy",
 	[KV_T_PERCENT] =		"percent",
+	[KV_T_COUNT] =			"count",
 	[KV_T_RAW] =			"raw",
 };
 

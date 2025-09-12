@@ -29,6 +29,7 @@ enum batgw_kv_type {
 	KV_T_WATTHOUR,
 	KV_T_ENERGY, /* kwh */
 	KV_T_PERCENT,
+	KV_T_COUNT,
 	KV_T_RAW,
 
 	KV_T_MAXTYPE
