@@ -132,7 +132,7 @@ static const struct batgw_kv_tpl byd_kvs_tpl[BYD_KV_COUNT] = {
 	[BYD_KV_PID_CHARGE_POWER] =
 		{ "max-charge",		KV_T_POWER,	0 },
 	[BYD_KV_PID_CHARGE_COUNT] =
-		{ "charge-count",	KV_T_RAW,	0 },
+		{ "charge-count",	KV_T_COUNT,	0 },
 	[BYD_KV_PID_CHARGED_AH] =
 		{ "charged",		KV_T_AMPHOUR,	0 },
 	[BYD_KV_PID_DISCHARGED_AH] =
