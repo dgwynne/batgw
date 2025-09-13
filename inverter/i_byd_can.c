@@ -73,6 +73,8 @@ const struct batgw_inverter inverter_byd_can = {
 
 enum byd_can_kvs {
 	BYD_CAN_KV_TEMP,
+	BYD_CAN_KV_SEND_VOLTAGE,
+	BYD_CAN_KV_RECV_VOLTAGE,
 	BYD_CAN_KV_DISCHARGE_CURRENT,
 	BYD_CAN_KV_CHARGE_CURRENT,
 
@@ -82,6 +84,10 @@ enum byd_can_kvs {
 static const struct batgw_kv_tpl byd_can_kvs_tpl[BYD_CAN_KV_COUNT] = {
 	[BYD_CAN_KV_TEMP] =
 		{ "temperature",	KV_T_TEMP,      1 },
+	[BYD_CAN_KV_SEND_VOLTAGE] =
+		{ "send-voltage",	KV_T_VOLTAGE,	1 },
+	[BYD_CAN_KV_RECV_VOLTAGE] =
+		{ "recv-voltage",	KV_T_VOLTAGE,	1 },
 	[BYD_CAN_KV_DISCHARGE_CURRENT] =
 		{ "max-discharge",	KV_T_CURRENT,   1 },
 	[BYD_CAN_KV_DISCHARGE_CURRENT] =
@@ -220,6 +226,7 @@ byd_can_i_wdog(int nil, short events, void *arg)
 
 	lwarnx("%s", __func__);
 	batgw_i_set_stopped(bg);
+	batgw_i_set_contactor(bg, 0);
 
 	for (i = 0; i < nitems(sc->can_ivals); i++)
 		evtimer_del(sc->can_ivals[i]);
@@ -315,6 +322,8 @@ byd_can_i_recv(int fd, short events, void *arg)
 	ssize_t rv;
 	size_t i;
 	int v;
+	unsigned int bdv, idv;
+	unsigned int contactor = 0;
 
 	rv = recv(fd, &frame, sizeof(frame), 0);
 	if (rv == -1) {
@@ -374,7 +383,17 @@ byd_can_i_recv(int fd, short events, void *arg)
 		break;
 
 	case 0x091:
-		//printf("i voltage %u\n", can_betoh16(&frame, 0));
+		idv = can_betoh16(&frame, 0);
+		batgw_kv_update(bg, "inverter",
+		    &sc->kvs[BYD_CAN_KV_RECV_VOLTAGE], idv);
+
+		if (batgw_i_get_voltage_dv(bg, &bdv) != 0) {
+			contactor =
+			    (bdv + BYD_HVS_VOLTAGE_OFFSET_DV) > idv &&
+			    (bdv - BYD_HVS_VOLTAGE_OFFSET_DV) < idv;
+		}
+		batgw_i_set_contactor(bg, contactor);
+
 		//printf("i current %u\n", can_betoh16(&frame, 2));
 		batgw_kv_update(bg, "inverter",
 		    &sc->kvs[BYD_CAN_KV_TEMP], can_betoh16(&frame, 4));
@@ -447,16 +466,19 @@ byd_can_send_150(const struct batgw *bg, struct byd_can_i_softc *sc)
 }
 
 static void
-byd_can_send_1d0(const struct batgw *bg, struct byd_can_i_softc *sc)
+byd_can_send_1d0(struct batgw *bg, struct byd_can_i_softc *sc)
 {
 	struct can_frame frame = { .can_id = 0x1d0, .len = 8 };
 	unsigned int dv;
 	int temp;
 
-	if (batgw_i_get_voltage_dv(bg, &dv) != 0 ||
-	    batgw_i_get_avg_temp_dc(bg, &temp) != 0)
+	if (batgw_i_get_avg_temp_dc(bg, &temp) != 0)
 		return;
+	if (batgw_i_get_voltage_dv(bg, &dv) != 0)
+		dv = 0;
 
+	batgw_kv_update(bg, "inverter",
+	    &sc->kvs[BYD_CAN_KV_SEND_VOLTAGE], dv);
 	can_htobe16(&frame, 0, dv); /* dV */
 	can_htobe16(&frame, 2, 0); /* dA */
 	can_htobe16(&frame, 4, temp);
