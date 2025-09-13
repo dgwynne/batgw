@@ -83,14 +83,14 @@ enum byd_can_kvs {
 
 static const struct batgw_kv_tpl byd_can_kvs_tpl[BYD_CAN_KV_COUNT] = {
 	[BYD_CAN_KV_TEMP] =
-		{ "temperature",	KV_T_TEMP,      1 },
+		{ "inverter",		KV_T_TEMP,      1 },
 	[BYD_CAN_KV_SEND_VOLTAGE] =
 		{ "send-voltage",	KV_T_VOLTAGE,	1 },
 	[BYD_CAN_KV_RECV_VOLTAGE] =
 		{ "recv-voltage",	KV_T_VOLTAGE,	1 },
 	[BYD_CAN_KV_DISCHARGE_CURRENT] =
 		{ "max-discharge",	KV_T_CURRENT,   1 },
-	[BYD_CAN_KV_DISCHARGE_CURRENT] =
+	[BYD_CAN_KV_CHARGE_CURRENT] =
 		{ "max-charge",		KV_T_CURRENT,   1 },
 };
 
