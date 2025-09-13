@@ -54,6 +54,16 @@
 #define BYD_PID_TOTAL_DISCHARGED_KWH	0x0012
 
 /*
+ * bytes 6 and 7 in the 50ms message decrement the top nibble by 1.
+ * the low nibble stays the same.
+ */
+#define BYD_50MS_6_INITIALIZER		0xbf
+#define BYD_50MS_7_INITIALIZER		0x59
+#define BYD_50MS_DECR			0x10
+
+static const struct timeval byd_50ms_change_tv = { 1, 150000 };
+
+/*
  * glue
  */
 
@@ -146,6 +156,12 @@ static const struct batgw_kv_tpl byd_kvs_tpl[BYD_KV_COUNT] = {
 struct byd_softc {
 	int			 can;
 	struct event		*can_recv;
+
+	uint8_t			 can_50ms_6;
+	uint8_t			 can_50ms_7;
+	struct event		*can_50ms;
+	struct event		*can_50ms_change;
+
 	struct event		*can_poll;
 	unsigned int		 can_poll_idx;
 	struct event		*can_wdog;
@@ -232,6 +248,17 @@ byd_b_attach(struct batgw *bg)
 	if (sc->can_recv == NULL)
 		errx(1, "new byd battery can recv event failed");
 
+	sc->can_50ms_6 = BYD_50MS_6_INITIALIZER;
+	sc->can_50ms_7 = BYD_50MS_7_INITIALIZER;
+	sc->can_50ms = evtimer_new(batgw_event_base(bg),
+	    byd_can_50ms, bg);
+	if (sc->can_50ms == NULL)
+		errx(1, "new byd battery can 50ms event failed");
+	sc->can_50ms_change = evtimer_new(batgw_event_base(bg),
+	    byd_can_50ms_change, bg);
+	if (sc->can_50ms == NULL)
+		errx(1, "new byd battery can 50ms event failed");
+
 	sc->can_poll = evtimer_new(batgw_event_base(bg),
 	    byd_can_poll, bg);
 	if (sc->can_poll == NULL)
@@ -275,6 +302,9 @@ byd_b_dispatch(struct batgw *bg, void *arg)
 	batgw_b_set_max_voltage_dv(bg, 4410);
 
 	event_add(sc->can_recv, NULL);
+	byd_can_50ms(0, 0, bg);
+	evtimer_add(sc->can_50ms_change, &byd_50ms_change_tv);
+	byd_can_50ms_change(0, 0, bg);
 	byd_can_poll(0, 0, bg);
 }
 
@@ -308,6 +338,35 @@ byd_b_teleperiod(struct batgw *bg, void *arg)
 
 		batgw_kv_publish(bg, "battery", kv);
 	}
+}
+
+static void
+byd_can_50ms(int nil, short events, void *arg)
+{
+	struct batgw *bg = arg;
+	struct byd_softc *sc = batgw_b_softc(bg);
+	struct can_frame frame = {
+		.can_id = 0x12d,
+		.len = 8,
+		.data = { 0xa0, 0x28, 0x02, 0xa0, 0x0c, 0x71, 0x00, 0x00 },
+	};
+	ssize_t rv;
+
+	if (!evtimer_pending(sc->can_50ms_change)) {
+		frame.data[2] = 0x00;
+		frame.data[3] = 0x22;
+		frame.data[5] = 0x31;
+	}
+
+	frame.data[6] = (sc->can_50ms_6 -= BYD_50MS_DECR);
+	frame.data[7] = (sc->can_50ms_7 -= BYD_50MS_DECR);
+
+	rv = send(EVENT_FD(sc->can_recv), &frame, sizeof(frame), 0);
+	if (rv == -1) {
+		lwarn("byd battery 50ms send");
+		return;
+	}
+
 }
 
 static const uint16_t byd_poll_pids[] = {
