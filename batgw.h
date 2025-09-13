@@ -102,6 +102,7 @@ void		 batgw_b_set_charge_w(struct batgw *, unsigned int);
 void		 batgw_b_set_discharge_w(struct batgw *, unsigned int);
 
 int		 batgw_b_get_running(const struct batgw *);
+unsigned int	 batgw_b_get_contactor(const struct batgw *);
 
 void		*batgw_i_softc(struct batgw *);
 const struct batgw_config_inverter *

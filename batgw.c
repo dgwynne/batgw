@@ -1194,6 +1194,12 @@ batgw_i_set_contactor(struct batgw *bg, unsigned int closed)
 	bg->bg_inverter_state.is_contactor = closed;
 }
 
+unsigned int
+batgw_b_get_contactor(const struct batgw *bg)
+{
+	return (bg->bg_inverter_state.is_contactor);
+}
+
 static inline int
 isset(unsigned int v, unsigned int m)
 {
