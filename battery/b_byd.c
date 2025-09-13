@@ -182,6 +182,8 @@ static void	byd_can_poll(int, short, void *);
 static void	byd_can_recv(int, short, void *);
 static void	byd_can_wdog(int, short, void *);
 
+static const struct timeval byd_50ms = { 0, 50000 };
+static const struct timeval byd_100ms = { 0, 100000 };
 static const struct timeval byd_200ms = { 0, 200000 };
 static const struct timeval byd_wdog_tv = { 10, 0 };
 
@@ -372,6 +374,8 @@ byd_can_50ms(int nil, short events, void *arg)
 	};
 	ssize_t rv;
 
+	evtimer_add(sc->can_50ms, &byd_50ms);
+
 	if (!evtimer_pending(sc->can_50ms_change, NULL)) {
 		frame.data[2] = 0x00;
 		frame.data[3] = 0x22;
@@ -402,6 +406,8 @@ byd_can_100ms(int nil, short events, void *arg)
 	int v; /* volts */
 	unsigned int csum = 0;
 	size_t i;
+
+	evtimer_add(sc->can_100ms, &byd_100ms);
 
 	v = batgw_kv_get(&sc->kvs[BYD_KV_VOLTAGE]);
 	if (v <= 12)
