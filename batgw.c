@@ -918,7 +918,7 @@ batgw_kv_publish(struct batgw *bg,
 		unsigned int div;
 		assert(kv->kv_precision < nitems(divs));
 		div = divs[kv->kv_precision];
-		plen = snprintf(p, sizeof(p), "%u.%*u",
+		plen = snprintf(p, sizeof(p), "%u.%0*u",
 		    kv->kv_v / div, kv->kv_precision, kv->kv_v % div);
 	}
 
