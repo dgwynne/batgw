@@ -162,6 +162,8 @@ struct byd_softc {
 	struct event		*can_50ms;
 	struct event		*can_50ms_change;
 
+	struct event		*can_100ms;
+
 	struct event		*can_poll;
 	unsigned int		 can_poll_idx;
 	struct event		*can_wdog;
@@ -173,6 +175,9 @@ struct byd_softc {
 	unsigned int		 ncell;
 };
 
+static void	byd_can_50ms(int, short, void *);
+static void	byd_can_50ms_change(int, short, void *);
+static void	byd_can_100ms(int, short, void *);
 static void	byd_can_poll(int, short, void *);
 static void	byd_can_recv(int, short, void *);
 static void	byd_can_wdog(int, short, void *);
@@ -259,6 +264,11 @@ byd_b_attach(struct batgw *bg)
 	if (sc->can_50ms == NULL)
 		errx(1, "new byd battery can 50ms event failed");
 
+	sc->can_100ms = evtimer_new(batgw_event_base(bg),
+	    byd_can_100ms, bg);
+	if (sc->can_100ms == NULL)
+		errx(1, "new byd battery can 100ms event failed");
+
 	sc->can_poll = evtimer_new(batgw_event_base(bg),
 	    byd_can_poll, bg);
 	if (sc->can_poll == NULL)
@@ -304,7 +314,7 @@ byd_b_dispatch(struct batgw *bg, void *arg)
 	event_add(sc->can_recv, NULL);
 	byd_can_50ms(0, 0, bg);
 	evtimer_add(sc->can_50ms_change, &byd_50ms_change_tv);
-	byd_can_50ms_change(0, 0, bg);
+	byd_can_100ms(0, 0, bg);
 	byd_can_poll(0, 0, bg);
 }
 
@@ -341,6 +351,16 @@ byd_b_teleperiod(struct batgw *bg, void *arg)
 }
 
 static void
+byd_can_50ms_change(int nil, short events, void *arg)
+{
+	/*
+	 * nop
+	 *
+	 * byd_can_50ms checks whether this evtimer is pending.
+	 */
+}
+
+static void
 byd_can_50ms(int nil, short events, void *arg)
 {
 	struct batgw *bg = arg;
@@ -352,7 +372,7 @@ byd_can_50ms(int nil, short events, void *arg)
 	};
 	ssize_t rv;
 
-	if (!evtimer_pending(sc->can_50ms_change)) {
+	if (!evtimer_pending(sc->can_50ms_change, NULL)) {
 		frame.data[2] = 0x00;
 		frame.data[3] = 0x22;
 		frame.data[5] = 0x31;
@@ -366,7 +386,38 @@ byd_can_50ms(int nil, short events, void *arg)
 		lwarn("byd battery 50ms send");
 		return;
 	}
+}
 
+static void
+byd_can_100ms(int nil, short events, void *arg)
+{
+	struct batgw *bg = arg;
+	struct byd_softc *sc = batgw_b_softc(bg);
+	struct can_frame frame = {
+		.can_id = 0x441,
+		.len = 8,
+		.data = { 0x98, 0x3a, 0x88, 0x13, 0x00, 0x00, 0xff, 0x00 },
+	};
+	ssize_t rv;
+	int v; /* volts */
+	unsigned int csum = 0;
+	size_t i;
+
+	v = batgw_kv_get(&sc->kvs[BYD_KV_VOLTAGE]);
+	if (v <= 12)
+		v = 12;
+
+	can_htole16(&frame, 4, v);
+
+	for (i = 0; i < sizeof(frame.data) - 1; i++)
+		csum += frame.data[i];
+	frame.data[7] = ~csum;
+
+	rv = send(EVENT_FD(sc->can_recv), &frame, sizeof(frame), 0);
+	if (rv == -1) {
+		lwarn("byd battery 100ms send");
+		return;
+	}
 }
 
 static const uint16_t byd_poll_pids[] = {
