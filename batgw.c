@@ -1449,7 +1449,7 @@ batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
 	if (!batgw_i_issafe(bg, safety))
 		return (0);
 
-	if (bs->bs_min_cell_voltage_mv < bconf->max_cell_voltage_mv)
+	if (bs->bs_min_cell_voltage_mv < bconf->min_cell_voltage_mv)
 		return (0);
 
 	return (batgw_get_safety_limited_da(bg,
