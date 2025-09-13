@@ -1025,6 +1025,13 @@ can_letoh16(const struct can_frame *frame, size_t o)
 	return (h16);
 }
 
+void
+can_htole16(struct can_frame *frame, size_t o, uint16_t h16)
+{
+	frame->data[o + 0] = h16 >> 0;
+	frame->data[o + 1] = h16 >> 8;
+}
+
 struct event_base *
 batgw_event_base(struct batgw *bg)
 {

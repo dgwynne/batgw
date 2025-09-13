@@ -137,3 +137,4 @@ uint16_t	 can_betoh16(const struct can_frame *, size_t);
 uint32_t	 can_betoh32(const struct can_frame *, size_t);
 uint16_t	 can_letoh16(const struct can_frame *, size_t);
 void		 can_htobe16(struct can_frame *, size_t, uint16_t);
+void		 can_htole16(struct can_frame *, size_t, uint16_t);
