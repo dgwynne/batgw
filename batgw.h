@@ -109,6 +109,7 @@ const struct batgw_config_inverter *
 
 void		 batgw_i_set_running(struct batgw *);
 void		 batgw_i_set_stopped(struct batgw *);
+void		 batgw_i_set_contactor(struct batgw *, unsigned int);
 
 int		 batgw_i_get_min_temp_dc(const struct batgw *, int *);
 int		 batgw_i_get_max_temp_dc(const struct batgw *, int *);

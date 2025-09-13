@@ -82,6 +82,7 @@ struct batgw_b_state {
 
 struct batgw_i_state {
 	unsigned int		 is_running;
+	unsigned int		 is_contactor;
 };
 
 struct batgw {
@@ -1185,6 +1186,12 @@ void
 batgw_i_set_stopped(struct batgw *bg)
 {
 	bg->bg_inverter_state.is_running = 0;
+}
+
+void
+batgw_i_set_contactor(struct batgw *bg, unsigned int closed)
+{
+	bg->bg_inverter_state.is_contactor = closed;
 }
 
 static inline int
