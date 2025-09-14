@@ -67,6 +67,7 @@ struct batgw_b_state {
 	unsigned int		 bs_valid;
 #define BATGW_B_VALID_SOC		(1 << 0)
 #define BATGW_B_VALID_VOLTAGE		(1 << 1)
+#define BATGW_B_VALID_CURRENT		(1 << 2)
 #define BATGW_B_VALID_MIN_TEMP		(1 << 4)
 #define BATGW_B_VALID_MAX_TEMP		(1 << 5)
 #define BATGW_B_VALID_AVG_TEMP		(1 << 6)
@@ -74,6 +75,7 @@ struct batgw_b_state {
 
         unsigned int             bs_soc_cpct;
         unsigned int             bs_voltage_dv;
+	int			 bs_current_da;
 
         int                      bs_min_temp_dc;
         int                      bs_max_temp_dc;
@@ -1114,6 +1116,13 @@ batgw_b_set_voltage_dv(struct batgw *bg, unsigned int dv)
 }
 
 void
+batgw_b_set_current_da(struct batgw *bg, int da)
+{
+	SET(bg->bg_battery_state.bs_valid, BATGW_B_VALID_CURRENT);
+	bg->bg_battery_state.bs_current_da = da;
+}
+
+void
 batgw_b_set_min_temp_dc(struct batgw *bg, int temp)
 {
 	SET(bg->bg_battery_state.bs_valid, BATGW_B_VALID_MIN_TEMP);
@@ -1252,6 +1261,19 @@ batgw_i_get_voltage_dv(const struct batgw *bg, unsigned int *dvp)
 
 	if (ISSET(bs->bs_valid, BATGW_B_VALID_VOLTAGE)) {
 		*dvp = bs->bs_voltage_dv;
+		return (0);
+	}
+
+	return (-1);
+}
+
+int
+batgw_i_get_current_da(const struct batgw *bg, int *dap)
+{
+	const struct batgw_b_state *bs = &bg->bg_battery_state;
+
+	if (ISSET(bs->bs_valid, BATGW_B_VALID_CURRENT)) {
+		*dap = bs->bs_current_da;
 		return (0);
 	}
 

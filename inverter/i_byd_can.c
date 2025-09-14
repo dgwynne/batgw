@@ -75,6 +75,8 @@ enum byd_can_kvs {
 	BYD_CAN_KV_TEMP,
 	BYD_CAN_KV_SEND_VOLTAGE,
 	BYD_CAN_KV_RECV_VOLTAGE,
+	BYD_CAN_KV_SEND_CURRENT,
+	BYD_CAN_KV_RECV_CURRENT,
 	BYD_CAN_KV_DISCHARGE_CURRENT,
 	BYD_CAN_KV_CHARGE_CURRENT,
 
@@ -85,9 +87,13 @@ static const struct batgw_kv_tpl byd_can_kvs_tpl[BYD_CAN_KV_COUNT] = {
 	[BYD_CAN_KV_TEMP] =
 		{ "inverter",		KV_T_TEMP,      1 },
 	[BYD_CAN_KV_SEND_VOLTAGE] =
-		{ "send-voltage",	KV_T_VOLTAGE,	1 },
+		{ "send",		KV_T_VOLTAGE,	1 },
 	[BYD_CAN_KV_RECV_VOLTAGE] =
-		{ "recv-voltage",	KV_T_VOLTAGE,	1 },
+		{ "recv",		KV_T_VOLTAGE,	1 },
+	[BYD_CAN_KV_SEND_CURRENT] =
+		{ "send",		KV_T_CURRENT,	1 },
+	[BYD_CAN_KV_RECV_CURRENT] =
+		{ "recv",		KV_T_CURRENT,	1 },
 	[BYD_CAN_KV_DISCHARGE_CURRENT] =
 		{ "max-discharge",	KV_T_CURRENT,   1 },
 	[BYD_CAN_KV_CHARGE_CURRENT] =
@@ -323,6 +329,7 @@ byd_can_i_recv(int fd, short events, void *arg)
 	size_t i;
 	int v;
 	unsigned int bdv, idv;
+	int16_t ida;
 	unsigned int contactor = 0;
 
 	rv = recv(fd, &frame, sizeof(frame), 0);
@@ -387,22 +394,26 @@ byd_can_i_recv(int fd, short events, void *arg)
 		batgw_kv_update(bg, "inverter",
 		    &sc->kvs[BYD_CAN_KV_RECV_VOLTAGE], idv);
 
+		ida = can_betoh16(&frame, 2);
+		batgw_kv_update(bg, "inverter",
+		    &sc->kvs[BYD_CAN_KV_RECV_CURRENT], ida);
+
+		/* XXX signed? */
+		batgw_kv_update(bg, "inverter",
+		    &sc->kvs[BYD_CAN_KV_TEMP], can_betoh16(&frame, 4));
+
 		if (batgw_i_get_voltage_dv(bg, &bdv) != 0) {
 			contactor =
 			    (bdv + BYD_HVS_VOLTAGE_OFFSET_DV) > idv &&
 			    (bdv - BYD_HVS_VOLTAGE_OFFSET_DV) < idv;
 		}
 		batgw_i_set_contactor(bg, contactor);
-
-		//printf("i current %u\n", can_betoh16(&frame, 2));
-		batgw_kv_update(bg, "inverter",
-		    &sc->kvs[BYD_CAN_KV_TEMP], can_betoh16(&frame, 4));
 		break;
 	case 0x0d1:
-		/* use gmtime to pull this apart event though it's not UTC */
 		//printf("i soc %u\n", can_betoh16(&frame, 0));
 		break;
 	case 0x111:
+		/* use gmtime to pull this apart event though it's not UTC */
 		sc->inverter_time = can_betoh32(&frame, 0);
 		break;
 	}
@@ -470,17 +481,23 @@ byd_can_send_1d0(struct batgw *bg, struct byd_can_i_softc *sc)
 {
 	struct can_frame frame = { .can_id = 0x1d0, .len = 8 };
 	unsigned int dv;
+	int da;
 	int temp;
 
 	if (batgw_i_get_avg_temp_dc(bg, &temp) != 0)
 		return;
 	if (batgw_i_get_voltage_dv(bg, &dv) != 0)
 		dv = 0;
+	if (batgw_i_get_current_da(bg, &da) != 0)
+		da = 0;
 
 	batgw_kv_update(bg, "inverter",
 	    &sc->kvs[BYD_CAN_KV_SEND_VOLTAGE], dv);
-	can_htobe16(&frame, 0, dv); /* dV */
-	can_htobe16(&frame, 2, 0); /* dA */
+	batgw_kv_update(bg, "inverter",
+	    &sc->kvs[BYD_CAN_KV_SEND_CURRENT], da);
+
+	can_htobe16(&frame, 0, dv);
+	can_htobe16(&frame, 2, (int16_t)da);
 	can_htobe16(&frame, 4, temp);
 
 	if (send(sc->can, &frame, sizeof(frame), 0) == -1)

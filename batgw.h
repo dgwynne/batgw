@@ -92,6 +92,7 @@ void		 batgw_b_set_min_voltage_dv(struct batgw *, unsigned int);
 void		 batgw_b_set_max_voltage_dv(struct batgw *, unsigned int);
 void		 batgw_b_set_soc_c_pct(struct batgw *, unsigned int);
 void		 batgw_b_set_voltage_dv(struct batgw *, unsigned int);
+void		 batgw_b_set_current_da(struct batgw *, int);
 void		 batgw_b_set_min_temp_dc(struct batgw *, int);
 void		 batgw_b_set_max_temp_dc(struct batgw *, int);
 void		 batgw_b_set_avg_temp_dc(struct batgw *, int);
@@ -127,7 +128,7 @@ int		 batgw_i_get_max_voltage_dv(const struct batgw *,
 		     unsigned int *);
 int		 batgw_i_get_soc_cpct(const struct batgw *, unsigned int *);
 int		 batgw_i_get_voltage_dv(const struct batgw *, unsigned int *);
-int		 batgw_i_get_current_da(struct batgw *, int *);
+int		 batgw_i_get_current_da(const struct batgw *, int *);
 
 unsigned int	 batgw_i_get_safety(struct batgw *);
 int		 batgw_i_issafe(struct batgw *, unsigned int);

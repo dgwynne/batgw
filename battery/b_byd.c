@@ -632,6 +632,8 @@ byd_can_recv(int fd, short events, void *arg)
 		case BYD_PID_BATTERY_CURRENT:
 			sv = can_letoh16(&frame, 4);
 			sv -= 5000;
+			sv = 0 - sv;
+			batgw_b_set_current_da(bg, sv);
 			batgw_kv_update(bg, "battery",
 			    &sc->kvs[BYD_KV_PID_CURRENT], sv);
 			break;
