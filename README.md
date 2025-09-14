@@ -115,8 +115,7 @@ $ ./obj/batgw
 
 ## Todo
 
-- implement daemoonisation (`daemon()`)
-- add support for closing (and opening) the BYD contactors
+- implement daemonisation (`daemon()`)
 
 ## But why?
 
