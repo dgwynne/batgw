@@ -77,6 +77,8 @@ struct batgw_inverter {
 
 struct event_base	*batgw_event_base(struct batgw *);
 unsigned int		 batgw_verbose(const struct batgw *);
+void			 batgw_publish(struct batgw *,
+			     const char *, size_t, const char *, size_t);
 
 void		*batgw_b_softc(struct batgw *);
 const struct batgw_config_battery *

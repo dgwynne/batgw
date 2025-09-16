@@ -831,6 +831,16 @@ batgw_mqtt_publish(struct batgw *bg,
 		batgw_mqtt_disconnect(bg);
 }
 
+void
+batgw_publish(struct batgw *bg,
+    const char *t, size_t tlen, const char *p, size_t plen)
+{
+	if (!batgw_mqtt_running(bg))
+		return;
+
+	batgw_mqtt_publish(bg, t, tlen, p, plen);
+}
+
 static void
 batgw_mqtt_teleperiod(int nil, short events, void *arg)
 {
