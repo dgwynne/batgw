@@ -99,13 +99,14 @@ typedef struct {
 %token	MQTT HOST PORT USERNAME PASSWORD CLIENT ID TOPIC TELEPERIOD RECONNECT
 %token	KEEP ALIVE OFF
 %token	INET INET6 IPV4 IPV6
-%token	BATTERY
+%token	BATTERY CHARGE DISCHARGE LIMIT
 %token	INVERTER
 %token	PROTOCOL INTERFACE
 %token	INCLUDE
 %token	ERROR
 %token	<v.string>		STRING
 %token	<v.number>		NUMBER
+%type	<v.number>		limit_max
 %type	<v.i>			af mqtt_keepalive
 %type	<v.string>		string
 
@@ -366,6 +367,94 @@ batteryopts	: PROTOCOL STRING {
 			}
 			conf->battery.ifname = $2;
 		}
+		| CHARGE LIMIT NUMBER limit_max {
+			static const char *cfg = "battery charge limit";
+			unsigned int w, maxw;
+			if (conf->battery.max_charge_w != 0) {
+				yyerror("%s is already configured", cfg);
+				YYERROR;
+			}
+			if ($3 > UINT_MAX) {
+				yyerror("% is way too high", cfg);
+				YYERROR;
+			}
+			if ($4 > UINT_MAX) {
+				yyerror("% max is way too high", cfg);
+				YYERROR;
+			}
+			w = $3;
+			maxw = $4;
+			if (maxw == 0)
+				maxw = w;
+			else {
+				if (maxw > 10000) { /* XXX */
+					yyerror("% max is too high", cfg);
+					YYERROR;
+				}
+				if (w > maxw) {
+					yyerror("%s above max", cfg);
+					YYERROR;
+				}
+			}
+
+			if (w < 0) {
+				yyerror("%s is too low", cfg);
+				YYERROR;
+			}
+
+			conf->battery.max_charge_w = maxw;
+			conf->battery.charge_w = w;
+		}
+		| DISCHARGE LIMIT NUMBER limit_max {
+			static const char *cfg = "battery discharge limit";
+			unsigned int w, maxw;
+			if (conf->battery.max_discharge_w != 0) {
+				yyerror("%s is already configured", cfg);
+				YYERROR;
+			}
+			if ($3 > UINT_MAX) {
+				yyerror("% is way too high", cfg);
+				YYERROR;
+			}
+			if ($4 > UINT_MAX) {
+				yyerror("% max is way too high", cfg);
+				YYERROR;
+			}
+			w = $3;
+			maxw = $4;
+			if (maxw == 0)
+				maxw = w;
+			else {
+				if (maxw > 10000) { /* XXX */
+					yyerror("% max is too high", cfg);
+					YYERROR;
+				}
+				if (w > maxw) {
+					yyerror("%s above max", cfg);
+					YYERROR;
+				}
+			}
+
+			if (w < 0) {
+				yyerror("%s is too low", cfg);
+				YYERROR;
+			}
+
+			conf->battery.max_discharge_w = maxw;
+			conf->battery.discharge_w = w;
+		}
+		;
+
+limit_max	: /* nop */ {
+			$$ = 0;
+		}
+		| MAX NUMBER {
+			if ($2 <= 0) {
+				yyerror("max limit is too low");
+				YYERROR;
+			}
+			$$ = $2;
+		}
 		;
 
 inverter	: INVERTER {
@@ -440,7 +529,9 @@ lookup(char *s)
 	static const struct keywords keywords[] = {
 		{"alive",		ALIVE},
 		{"battery",		BATTERY},
+		{"charge",		CHARGE},
 		{"client",		CLIENT},
+		{"discharge",		DISCHARGE},
 		{"host",		HOST},
 		{"id",			ID},
 		{"iface",		INTERFACE},
@@ -450,6 +541,7 @@ lookup(char *s)
 		{"inverter",		INVERTER},
 		{"ipv4",		IPV4},
 		{"ipv6",		IPV6},
+		{"limit",		LIMIT},
 		{"keep",		KEEP},
 		{"mqtt",		MQTT},
 		{"off",			OFF},

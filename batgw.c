@@ -220,6 +220,15 @@ main(int argc, char *argv[])
 			mqttconf->reconnect_tmo = 30;
 	}
 
+	if (conf->battery.max_charge_w == 0) {
+		conf->battery.max_charge_w = BATGW_CHARGE_MAX_DEFAULT;
+		conf->battery.charge_w = BATGW_CHARGE_DEFAULT;
+	}
+	if (conf->battery.max_discharge_w == 0) {
+		conf->battery.max_discharge_w = BATGW_DISCHARGE_MAX_DEFAULT;
+		conf->battery.discharge_w = BATGW_DISCHARGE_DEFAULT;
+	}
+
 	bg->bg_battery->b_config(&conf->battery);
 	bg->bg_inverter->i_config(&conf->inverter);
 
@@ -310,6 +319,14 @@ dump_config(const struct batgw_config *conf)
 	printf("\t" "protocol \"%s\"" "\n", conf->battery.protocol);
 	if (conf->battery.ifname)
 		printf("\t" "interface \"%s\"" "\n", conf->battery.ifname);
+	if (conf->battery.max_charge_w != 0) {
+		printf("\t" "charge limit %u max %u\n",
+		    conf->battery.max_charge_w, conf->battery.charge_w);
+	}
+	if (conf->battery.max_discharge_w != 0) {
+		printf("\t" "discharge limit %u max %u\n",
+		    conf->battery.max_discharge_w, conf->battery.discharge_w);
+	}
 	printf("}\n\n");
 
 	printf("inverter {\n");
@@ -1454,8 +1471,8 @@ batgw_get_safety_limited_da(struct batgw *bg,
 	if (dv == 0)
 		return (0);
 
-	if (w > 10000)
-		w = 10000;
+	if (w > wlimit)
+		w = wlimit;
 
 	da = (w * 100) / dv;
 
@@ -1475,7 +1492,7 @@ batgw_i_get_charge_da(struct batgw *bg, unsigned int safety)
 		return (0);
 
 	return (batgw_get_safety_limited_da(bg,
-	    bs->bs_max_charge_w, 10000));
+	    bs->bs_max_charge_w, bconf->charge_w));
 }
 
 unsigned int
@@ -1491,5 +1508,5 @@ batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
 		return (0);
 
 	return (batgw_get_safety_limited_da(bg,
-	    bs->bs_max_discharge_w, 10000));
+	    bs->bs_max_discharge_w, bconf->discharge_w));
 }

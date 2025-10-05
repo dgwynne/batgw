@@ -43,6 +43,12 @@ struct batgw_config_mqtt {
 	unsigned int	 reconnect_tmo;		/* approx seconds */
 };
 
+#define BATGW_CHARGE_MAX_DEFAULT	10000
+#define BATGW_CHARGE_DEFAULT		BATGW_CHARGE_MAX_DEFAULT
+
+#define BATGW_DISCHARGE_MAX_DEFAULT	10000
+#define BATGW_DISCHARGE_DEFAULT		BATGW_DISCHARGE_MAX_DEFAULT
+
 struct batgw_config_battery {
 	char		*protocol;
 	char		*ifname;
@@ -60,7 +66,9 @@ struct batgw_config_battery {
 	unsigned int	 dev_cell_voltage_mv;
 
 	unsigned int	 max_charge_w;
+	unsigned int	 charge_w;
 	unsigned int	 max_discharge_w;
+	unsigned int	 discharge_w;
 };
 
 struct batgw_config_inverter {
