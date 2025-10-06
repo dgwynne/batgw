@@ -942,14 +942,21 @@ batgw_kv_publish(struct batgw *bg,
 	tlen += len;
 
 	if (kv->kv_precision == 0)
-		plen = snprintf(p, sizeof(p), "%u", kv->kv_v);
+		plen = snprintf(p, sizeof(p), "%d", kv->kv_v);
 	else {
 		static unsigned int divs[] = { 1, 10, 100, 1000, 10000 };
+		const char *neg = "";
 		unsigned int div;
+		unsigned int v;
 		assert(kv->kv_precision < nitems(divs));
 		div = divs[kv->kv_precision];
-		plen = snprintf(p, sizeof(p), "%u.%0*u",
-		    kv->kv_v / div, kv->kv_precision, kv->kv_v % div);
+		if (kv->kv_v < 0) {
+			v = 0 - kv->kv_v;
+			neg = "-";
+		} else
+			v = kv->kv_v;
+		plen = snprintf(p, sizeof(p), "%s%u.%0*u",
+		    neg, v / div, kv->kv_precision, v % div);
 	}
 
 	mqtt_publish(bgm->conn, t, tlen, p, plen, MQTT_QOS0, 0);
