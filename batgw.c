@@ -868,6 +868,7 @@ batgw_mqtt_teleperiod(int nil, short events, void *arg)
 	batgw_evtimer_add(bgm->ev_to_teleperiod, mqttconf->teleperiod);
 
 	bg->bg_battery->b_teleperiod(bg, bg->bg_battery_sc);
+	bg->bg_inverter->i_teleperiod(bg, bg->bg_inverter_sc);
 }
 
 static const char *const batgw_kv_type_names[KV_T_MAXTYPE] = {
