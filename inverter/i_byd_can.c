@@ -479,7 +479,11 @@ byd_can_send_150(const struct batgw *bg, struct byd_can_i_softc *sc)
 static void
 byd_can_send_1d0(struct batgw *bg, struct byd_can_i_softc *sc)
 {
-	struct can_frame frame = { .can_id = 0x1d0, .len = 8 };
+	struct can_frame frame = {
+		.can_id = 0x1d0,
+		.len = 8,
+		.data = { [6] = 0x03, [7] = 0x08 }
+	};
 	unsigned int dv;
 	int da;
 	int temp;
