@@ -410,7 +410,7 @@ byd_can_100ms(int nil, short events, void *arg)
 	evtimer_add(sc->can_100ms, &byd_100ms);
 
 	v = batgw_kv_get(&sc->kvs[BYD_KV_VOLTAGE]);
-	if (v <= 12 || !batgw_b_get_contactor(bg))
+	if (v <= 12)
 		v = 12;
 
 	can_htole16(&frame, 4, v);
