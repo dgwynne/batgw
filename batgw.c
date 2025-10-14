@@ -1140,7 +1140,7 @@ batgw_b_set_min_voltage_dv(struct batgw *bg, unsigned int dv)
 void
 batgw_b_set_max_voltage_dv(struct batgw *bg, unsigned int dv)
 {
-	bg->bg_battery_state.bs_min_voltage_dv = dv;
+	bg->bg_battery_state.bs_max_voltage_dv = dv;
 }
 
 void
@@ -1266,7 +1266,7 @@ batgw_i_get_min_voltage_dv(const struct batgw *bg, unsigned int *dvp)
 int
 batgw_i_get_max_voltage_dv(const struct batgw *bg, unsigned int *dvp)
 {
-	unsigned int dv = bg->bg_battery_state.bs_min_voltage_dv;
+	unsigned int dv = bg->bg_battery_state.bs_max_voltage_dv;
 
 	if (dv != 0) {
 		*dvp = dv;
