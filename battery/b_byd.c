@@ -598,7 +598,6 @@ byd_can_recv(int fd, short events, void *arg)
 		break;
 	case 0x447:
 		uv = can_letoh16(&frame, 4);
-		batgw_b_set_soc_c_pct(bg, uv * 10);
 		batgw_kv_update(bg, "battery",
 		    &sc->kvs[BYD_KV_SOC], uv);
 		//printf("lo temp? %u\n", frame.data[1] - 40);
@@ -620,8 +619,10 @@ byd_can_recv(int fd, short events, void *arg)
 
 		switch (can_betoh16(&frame, 2)) {
 		case BYD_PID_BATTERY_SOC:
+			uv = frame.data[4];
+			batgw_b_set_soc_c_pct(bg, uv * 100);
 			batgw_kv_update(bg, "battery",
-			    &sc->kvs[BYD_KV_PID_SOC], frame.data[4]);
+			    &sc->kvs[BYD_KV_PID_SOC], uv);
 			break;
 		case BYD_PID_BATTERY_VOLTAGE:
 			uv = can_letoh16(&frame, 4);
