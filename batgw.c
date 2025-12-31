@@ -46,6 +46,10 @@
 
 #define BATGW_CONFFILE "/etc/batgw.conf"
 
+#define BATGW_MQTT_LWT		"LWT"
+#define BATGW_MQTT_STATUS	"STATUS"
+#define BATGW_MQTT_CMND		"cmnd"
+
 struct batgw_mqtt;
 
 struct batgw_b_state {
@@ -96,6 +100,9 @@ struct batgw {
 
 	struct batgw_mqtt	*bg_mqtt;
 
+	unsigned int		 bg_charge_off;
+	unsigned int		 bg_discharge_off;
+
 	const struct batgw_battery
 				*bg_battery;
 	void			*bg_battery_sc;
@@ -119,6 +126,8 @@ static void	teleperiod(int, short, void *);
 static const struct timeval teleperiod_tv = { 60, 0 };
 
 static void	batgw_mqtt_init(struct batgw *);
+static void	batgw_mqtt_status(struct batgw *);
+static int	batgw_cmnd_onoff(const char *);
 
 static struct batgw _bg;
 
@@ -130,8 +139,8 @@ usage(void)
 {
 	const char *progname = getprogname();
 
-	fprintf(stderr, "usage: %s [-dnv] [-D macro=value] [-f file]\n",
-	    progname);
+	fprintf(stderr, "usage: %s [-dnv] [-c on|off] [-D macro=value] "
+	    "[-f file]\n", progname);
 
 	exit(1);
 }
@@ -145,6 +154,7 @@ main(int argc, char *argv[])
 	int confcheck = 0;
 	int debug = 0;
 	int ch;
+	int v;
 
 	struct batgw_config *conf;
 	struct batgw_config_mqtt *mqttconf;
@@ -154,8 +164,16 @@ main(int argc, char *argv[])
 		v_unsafe = arc4random();
 	} while (v_unsafe == v_safe);
 
-	while ((ch = getopt(argc, argv, "dD:f:nv")) != -1) {
+	while ((ch = getopt(argc, argv, "c:dD:f:nv")) != -1) {
 		switch (ch) {
+		case 'c':
+			v = batgw_cmnd_onoff(optarg);
+			if (v == -1) {
+				errno = EINVAL; /* stupid linux */
+				err(1, "charge and discharge %s", optarg);
+			}
+			bg->bg_charge_off = bg->bg_discharge_off = !v;
+			break;
 		case 'd':
 			debug = 0;
 			break;
@@ -363,6 +381,10 @@ struct batgw_mqtt {
 
 	const char			*will_topic;
 	size_t				 will_topic_len;
+	const char			*cmnd_topic;
+	size_t				 cmnd_topic_len;
+	const char			*status_topic;
+	size_t				 status_topic_len;
 
 	struct mqtt_conn		*conn;
 	struct event			*ev_rd;
@@ -511,6 +533,13 @@ batgw_mqtt_on_connect(struct mqtt_conn *mc)
 		return;
 	}
 
+	if (mqtt_subscribe(mc, NULL,
+	    bgm->cmnd_topic, bgm->cmnd_topic_len, MQTT_QOS0) == -1) {
+		warnx("mqtt subscribe %s", bg->bg_mqtt->cmnd_topic);
+		batgw_mqtt_disconnect(bg);
+		return;
+	}
+
 	bgm->running = 1;
 
 	batgw_mqtt_teleperiod(0, 0, bg);
@@ -523,12 +552,54 @@ batgw_mqtt_on_suback(struct mqtt_conn *mc, void *cookie,
 	/* cool */
 }
 
+static int
+batgw_cmnd_onoff(const char *payload)
+{
+	if (payload == NULL)
+		return (-1);
+
+	if (strcasecmp(payload, "on") == 0 || strcmp(payload, "1") == 0)
+		return (1);
+	if (strcasecmp(payload, "off") == 0 || strcmp(payload, "0") == 0)
+		return (0);
+	return (-1);
+}
+
+static void
+batgw_mqtt_cmnd(struct batgw *bg,
+    const char *topic, size_t topic_len,
+    const char *payload, size_t payload_len)
+{
+	int v;
+
+	if (strcmp(topic, "charge") == 0) {
+		v = batgw_cmnd_onoff(payload);
+		if (v != -1)
+			bg->bg_charge_off = !v;
+	} else if (strcmp(topic, "discharge") == 0) {
+		v = batgw_cmnd_onoff(payload);
+		if (v != -1)
+			bg->bg_discharge_off = !v;
+	}
+
+	batgw_mqtt_status(bg);
+}
+
 static void
 batgw_mqtt_on_message(struct mqtt_conn *mc,
     char *topic, size_t topic_len, char *payload, size_t payload_len,
     enum mqtt_qos qos)
 {
-	linfo("topic %s payload %s", topic, payload);
+	struct batgw *bg = mqtt_cookie(mc);
+	struct batgw_mqtt *bgm = bg->bg_mqtt;
+	size_t cmnd_len = bgm->cmnd_topic_len - 1; /* chop the # off the end */
+
+	if (topic_len > cmnd_len &&
+	    strncmp(topic, bgm->cmnd_topic, cmnd_len) == 0) {
+		batgw_mqtt_cmnd(bg, topic + cmnd_len, topic_len - cmnd_len,
+		    payload, payload_len);
+	}
+
 	free(topic);
 	free(payload);
 }
@@ -804,11 +875,23 @@ batgw_mqtt_init(struct batgw *bg)
 	if (bgm->ev_to_teleperiod == NULL)
 		errx(1, "mqtt ev_to_teleperiod evtimer_new failed");
 
-	rv = asprintf(&topic, "%s/LWT", mqttconf->topic);
+	rv = asprintf(&topic, "%s/%s", mqttconf->topic, BATGW_MQTT_LWT);
 	if (rv == -1)
 		errx(1, "mqtt lwt topic printf error");
 	bgm->will_topic = topic;
-        bgm->will_topic_len = rv;
+	bgm->will_topic_len = rv;
+
+	rv = asprintf(&topic, "%s/%s/#", mqttconf->topic, BATGW_MQTT_CMND);
+	if (rv == -1)
+		errx(1, "mqtt cmnd topic printf error");
+	bgm->cmnd_topic = topic;
+	bgm->cmnd_topic_len = rv;
+
+	rv = asprintf(&topic, "%s/%s", mqttconf->topic, BATGW_MQTT_STATUS);
+	if (rv == -1)
+		errx(1, "mqtt status topic printf error");
+	bgm->status_topic = topic;
+	bgm->status_topic_len = rv;
 
 	bgm->evdnsbase = evdns_base_new(bg->bg_evbase,
 	    EVDNS_BASE_INITIALIZE_NAMESERVERS);
@@ -863,6 +946,27 @@ batgw_publish(struct batgw *bg,
 }
 
 static void
+batgw_mqtt_status(struct batgw *bg)
+{
+	static char payload[1024]; /* how long is a string? */
+	struct batgw_mqtt *bgm = bg->bg_mqtt;
+	size_t payload_len;
+	int rv;
+
+	rv = snprintf(payload, sizeof(payload),
+	    "{\"charge\":\"%s\",\"discharge\":\"%s\"}",
+	    bg->bg_charge_off ? "OFF" : "ON",
+	    bg->bg_discharge_off ? "OFF" : "ON");
+	if (rv == -1)
+		return;
+	payload_len = rv;
+
+	batgw_mqtt_publish(bg,
+	    bgm->status_topic, bgm->status_topic_len,
+	    payload, payload_len);
+}
+
+static void
 batgw_mqtt_teleperiod(int nil, short events, void *arg)
 {
 	struct batgw *bg = arg;
@@ -871,6 +975,7 @@ batgw_mqtt_teleperiod(int nil, short events, void *arg)
 
 	batgw_evtimer_add(bgm->ev_to_teleperiod, mqttconf->teleperiod);
 
+	batgw_mqtt_status(bg);
 	bg->bg_battery->b_teleperiod(bg, bg->bg_battery_sc);
 	bg->bg_inverter->i_teleperiod(bg, bg->bg_inverter_sc);
 }
@@ -1497,6 +1602,9 @@ batgw_i_get_charge_da(struct batgw *bg, unsigned int safety)
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
 	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 
+	if (bg->bg_charge_off)
+		return (0);
+
 	if (!batgw_i_issafe(bg, safety))
 		return (0);
 
@@ -1512,6 +1620,9 @@ batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
 {
 	const struct batgw_b_state *bs = &bg->bg_battery_state;
 	const struct batgw_config_battery *bconf = batgw_b_config(bg);
+
+	if (bg->bg_discharge_off)
+		return (0);
 
 	if (!batgw_i_issafe(bg, safety))
 		return (0);
