@@ -369,6 +369,7 @@ struct batgw_mqtt {
 	struct event			*ev_wr;
 	struct event			*ev_to;
 
+	unsigned int			 resolved;
 	unsigned int			 running;
 };
 
@@ -738,6 +739,8 @@ batgw_mqtt_addrinfo(int errcode, struct evutil_addrinfo *res0, void *arg)
 	int serrno;
 	const char *cause;
 
+	bgm->resolved = 1;
+
 	if (errcode != 0) {
 		lwarnx("mqtt server %s port %s: %s",
 		    mqttconf->host, mqttconf->port,
@@ -758,10 +761,11 @@ batgw_mqtt_start(struct batgw *bg)
 	const struct batgw_config_mqtt *mqttconf = bg->bg_conf->mqtt;
 	struct batgw_mqtt *bgm = bg->bg_mqtt;
 
+	bgm->resolved = 0;
 	bgm->req = evdns_getaddrinfo(bgm->evdnsbase,
 	    mqttconf->host, mqttconf->port, &bgm->hints,
 	    batgw_mqtt_addrinfo, bg);
-	if (bgm->req == NULL) {
+	if (bgm->req == NULL && bgm->resolved == 0) {
 		lwarnx("mqtt server %s port %s: resolve failed",
 		    mqttconf->host, mqttconf->port);
 		batgw_mqtt_reconnect(bg);
