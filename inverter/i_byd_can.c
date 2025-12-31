@@ -515,7 +515,7 @@ byd_can_send_210(const struct batgw *bg, struct byd_can_i_softc *sc)
 	unsigned int min_temp, max_temp;
 
 	if (batgw_i_get_min_temp_dc(bg, &min_temp) != 0 ||
-	    batgw_i_get_min_temp_dc(bg, &max_temp) != 0)
+	    batgw_i_get_max_temp_dc(bg, &max_temp) != 0)
 		return;
 
 	can_htobe16(&frame, 0, max_temp);
