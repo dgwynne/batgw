@@ -58,8 +58,8 @@ struct batgw_b_state {
 	unsigned int		 bs_min_voltage_dv;
 	unsigned int		 bs_max_voltage_dv;
 
-        unsigned int             bs_max_charge_w;
-        unsigned int             bs_max_discharge_w;
+	unsigned int		 bs_max_charge_w;
+	unsigned int		 bs_max_discharge_w;
 
 	unsigned int		 bs_min_cell_voltage_mv;
 	unsigned int		 bs_max_cell_voltage_mv;
@@ -73,13 +73,13 @@ struct batgw_b_state {
 #define BATGW_B_VALID_AVG_TEMP		(1 << 6)
 
 
-        unsigned int             bs_soc_cpct;
-        unsigned int             bs_voltage_dv;
+	unsigned int		 bs_soc_cpct;
+	unsigned int		 bs_voltage_dv;
 	int			 bs_current_da;
 
-        int                      bs_min_temp_dc;
-        int                      bs_max_temp_dc;
-        int                      bs_avg_temp_dc;
+	int			 bs_min_temp_dc;
+	int			 bs_max_temp_dc;
+	int			 bs_avg_temp_dc;
 };
 
 struct batgw_i_state {
