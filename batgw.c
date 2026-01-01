@@ -96,6 +96,7 @@ struct batgw {
 				 bg_conf;
 	unsigned int		 bg_verbose;
 
+	struct event_config	*bg_evcfg;
 	struct event_base	*bg_evbase;
 
 	struct batgw_mqtt	*bg_mqtt;
@@ -258,9 +259,16 @@ main(int argc, char *argv[])
 	/* let's try and get going */
 
 	bg->bg_conf = conf;
-	bg->bg_evbase = event_base_new();
+
+	bg->bg_evcfg = event_config_new();
+	if (bg->bg_evcfg == NULL)
+		errx(1, "event_config_new failed");
+
+	event_config_set_flag(bg->bg_evcfg, EVENT_BASE_FLAG_PRECISE_TIMER);
+
+	bg->bg_evbase = event_base_new_with_config(bg->bg_evcfg);
 	if (bg->bg_evbase == NULL)
-		errx(1, "event_base_new failed");
+		errx(1, "new event_base failed");
 
 	bg->bg_battery_sc = bg->bg_battery->b_attach(bg);
 	bg->bg_inverter_sc = bg->bg_inverter->i_attach(bg);
