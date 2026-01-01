@@ -119,8 +119,34 @@ struct batgw {
 	const char		*bg_unsafe_reason;
 };
 
-extern const struct batgw_battery battery_byd;
 extern const struct batgw_inverter inverter_byd_can;
+
+struct batgw_battery_driver {
+	const char			*name;
+	const struct batgw_battery	*driver;
+};
+
+extern const struct batgw_battery battery_byd;
+extern const struct batgw_battery battery_mg4;
+
+static const struct batgw_battery_driver batgw_batteries[] = {
+	{ "byd", &battery_byd },
+	{ "mg4", &battery_mg4 },
+};
+
+static const struct batgw_battery *
+batgw_battery_lookup(const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < nitems(batgw_batteries); i++) {
+		const struct batgw_battery_driver *b = &batgw_batteries[i];
+		if (strcmp(b->name, name) == 0)
+			return (b->driver);
+	}
+
+	return (NULL);
+}
 
 static void	can_recv(int, short, void *);
 static void	can_poll(int, short, void *);
@@ -205,7 +231,11 @@ main(int argc, char *argv[])
 	if (conf == NULL)
 		exit(1);
 
-	bg->bg_battery = &battery_byd; /* XXX */
+	bg->bg_battery = batgw_battery_lookup(conf->battery.protocol);
+	if (bg->bg_battery == NULL) {
+		errx(1, "battery protocol \"%s\": unknown",
+		    conf->battery.protocol);
+	}
 	bg->bg_inverter = &inverter_byd_can; /* XXX */
 
 	if (bg->bg_battery->b_check(&conf->battery) != 0)
