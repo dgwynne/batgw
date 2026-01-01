@@ -33,9 +33,9 @@
  * hardware details
  */
 
-#define BYD_MIN_CELL_VOLTAGE_MV		2800
-#define BYD_MAX_CELL_VOLTAGE_MV		3800
-#define BYD_DEV_CELL_VOLTAGE_MV		150
+#define MG4_MIN_CELL_VOLTAGE_MV		2800
+#define MG4_MAX_CELL_VOLTAGE_MV		3800
+#define MG4_DEV_CELL_VOLTAGE_MV		150
 
 /*
  * glue
@@ -143,9 +143,9 @@ mg4_config(struct batgw_config_battery *bconf)
 	bconf->rated_capacity_ah = 156;
 	bconf->rated_voltage_dv = 3270;
 
-	bconf->min_cell_voltage_mv = BYD_MIN_CELL_VOLTAGE_MV;
-	bconf->max_cell_voltage_mv = BYD_MAX_CELL_VOLTAGE_MV;
-	bconf->dev_cell_voltage_mv = BYD_DEV_CELL_VOLTAGE_MV;
+	bconf->min_cell_voltage_mv = MG4_MIN_CELL_VOLTAGE_MV;
+	bconf->max_cell_voltage_mv = MG4_MAX_CELL_VOLTAGE_MV;
+	bconf->dev_cell_voltage_mv = MG4_DEV_CELL_VOLTAGE_MV;
 }
 
 static void *
