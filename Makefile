@@ -7,7 +7,7 @@ SRCS+=		parse.y
 CLEANFILES+=	parse.c y.tab.h
 CFLAGS+=	-I${.CURDIR}
 
-SRCS+=	battery/b_byd.c
+SRCS+=	battery/b_byd.c battery/b_mg4.c
 
 SRCS+=	inverter/i_byd_can.c
 
