@@ -1179,6 +1179,19 @@ can_htole16(struct can_frame *frame, size_t o, uint16_t h16)
 	frame->data[o + 1] = h16 >> 8;
 }
 
+void
+can_htobe64(struct can_frame *frame, uint64_t h64)
+{
+	frame->data[0] = h64 >> 56;
+	frame->data[1] = h64 >> 48;
+	frame->data[2] = h64 >> 40;
+	frame->data[3] = h64 >> 32;
+	frame->data[4] = h64 >> 24;
+	frame->data[5] = h64 >> 16;
+	frame->data[6] = h64 >>  8;
+	frame->data[7] = h64 >>  0;
+}
+
 struct event_base *
 batgw_event_base(struct batgw *bg)
 {
