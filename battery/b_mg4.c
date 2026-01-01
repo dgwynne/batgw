@@ -212,13 +212,11 @@ mg4_dispatch(struct batgw *bg, void *arg)
 
 	event_add(sc->can_recv, NULL);
 
-#if 1
 	evtimer_add(sc->can_keepalive, &mg4_keepalive_tv);
 	evtimer_add(sc->can_contactor, &mg4_contactor_tv);
 
 	mg4_can_keepalive(0, 0, bg);
 	mg4_can_contactor(0, 0, bg);
-#endif
 }
 
 static void
