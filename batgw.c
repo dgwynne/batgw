@@ -103,6 +103,8 @@ struct batgw {
 
 	unsigned int		 bg_charge_off;
 	unsigned int		 bg_discharge_off;
+	unsigned int		 bg_max_charge_w;
+	unsigned int		 bg_max_discharge_w;
 
 	const struct batgw_battery
 				*bg_battery;
@@ -257,6 +259,9 @@ main(int argc, char *argv[])
 	}
 
 	/* let's try and get going */
+
+	bg->bg_max_charge_w = conf->battery.charge_w;
+	bg->bg_max_discharge_w = conf->battery.discharge_w;
 
 	bg->bg_conf = conf;
 
@@ -578,6 +583,8 @@ batgw_mqtt_cmnd(struct batgw *bg,
     const char *topic, size_t topic_len,
     const char *payload, size_t payload_len)
 {
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
+	const char *errstr;
 	int v;
 
 	if (strcmp(topic, "charge") == 0) {
@@ -588,6 +595,14 @@ batgw_mqtt_cmnd(struct batgw *bg,
 		v = batgw_cmnd_onoff(payload);
 		if (v != -1)
 			bg->bg_discharge_off = !v;
+	} else if (strcmp(topic, "max-charge") == 0) {
+		v = strtonum(payload, 0, bconf->max_charge_w, &errstr);
+		if (errstr == NULL)
+			bg->bg_max_charge_w = v;
+	} else if (strcmp(topic, "max-discharge") == 0) {
+		v = strtonum(payload, 0, bconf->max_discharge_w, &errstr);
+		if (errstr == NULL)
+			bg->bg_max_discharge_w = v;
 	}
 
 	batgw_mqtt_status(bg);
@@ -956,15 +971,21 @@ batgw_publish(struct batgw *bg,
 static void
 batgw_mqtt_status(struct batgw *bg)
 {
+	const struct batgw_config_battery *bconf = batgw_b_config(bg);
 	static char payload[1024]; /* how long is a string? */
 	struct batgw_mqtt *bgm = bg->bg_mqtt;
 	size_t payload_len;
 	int rv;
 
 	rv = snprintf(payload, sizeof(payload),
-	    "{\"charge\":\"%s\",\"discharge\":\"%s\"}",
+	    "{"
+		"\"charge\":\"%s\",\"discharge\":\"%s\","
+		"\"max-charge\":%u,\"max-discharge\":%u"
+	    "}",
 	    bg->bg_charge_off ? "OFF" : "ON",
-	    bg->bg_discharge_off ? "OFF" : "ON");
+	    bg->bg_discharge_off ? "OFF" : "ON",
+	    bg->bg_max_charge_w,
+	    bg->bg_max_discharge_w);
 	if (rv == -1)
 		return;
 	payload_len = rv;
@@ -1633,7 +1654,7 @@ batgw_i_get_charge_da(struct batgw *bg, unsigned int safety)
 		return (0);
 
 	return (batgw_get_safety_limited_da(bg,
-	    bs->bs_max_charge_w, bconf->charge_w));
+	    bs->bs_max_charge_w, bg->bg_max_charge_w));
 }
 
 unsigned int
@@ -1652,5 +1673,5 @@ batgw_i_get_discharge_da(struct batgw *bg, unsigned int safety)
 		return (0);
 
 	return (batgw_get_safety_limited_da(bg,
-	    bs->bs_max_discharge_w, bconf->discharge_w));
+	    bs->bs_max_discharge_w, bg->bg_max_discharge_w));
 }
