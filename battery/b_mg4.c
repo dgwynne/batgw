@@ -98,8 +98,6 @@ static void	mg4_can_contactor(int, short, void *);
 static void	mg4_can_recv(int, short, void *);
 static void	mg4_can_wdog(int, short, void *);
 
-static const struct timeval mg4_200ms = { 0, 199000 };
-static const struct timeval mg4_1s = { 1, 0 };
 static const struct timeval mg4_wdog_tv = { 10, 0 };
 static const struct timeval mg4_keepalive_tv = { 0, 100000 };
 static const struct timeval mg4_contactor_tv = { 0,  10000 };
