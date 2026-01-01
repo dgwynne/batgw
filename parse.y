@@ -99,7 +99,7 @@ typedef struct {
 %token	MQTT HOST PORT USERNAME PASSWORD CLIENT ID TOPIC TELEPERIOD RECONNECT
 %token	KEEP ALIVE OFF
 %token	INET INET6 IPV4 IPV6
-%token	BATTERY CHARGE DISCHARGE LIMIT
+%token	BATTERY CHARGE DISCHARGE LIMIT MAX
 %token	INVERTER
 %token	PROTOCOL INTERFACE
 %token	INCLUDE
@@ -541,8 +541,9 @@ lookup(char *s)
 		{"inverter",		INVERTER},
 		{"ipv4",		IPV4},
 		{"ipv6",		IPV6},
-		{"limit",		LIMIT},
 		{"keep",		KEEP},
+		{"limit",		LIMIT},
+		{"max",			MAX},
 		{"mqtt",		MQTT},
 		{"off",			OFF},
 		{"password",		PASSWORD},
