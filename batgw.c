@@ -1599,6 +1599,7 @@ batgw_i_get_safety(struct batgw *bg)
 	CHECK(diff < bconf->dev_cell_voltage_mv,
 	    "battery cell voltage difference is too high");
 
+	bg->bg_unsafe_reason = NULL;
 	return (v_safe);
 
 unsafe:
