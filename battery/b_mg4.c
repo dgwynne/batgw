@@ -37,22 +37,6 @@
 #define BYD_MAX_CELL_VOLTAGE_MV		3800
 #define BYD_DEV_CELL_VOLTAGE_MV		150
 
-#define BYD_PID_BATTERY_SOC		0x0005
-#define BYD_PID_BATTERY_VOLTAGE		0x0008
-#define BYD_PID_BATTERY_CURRENT		0x0009
-#define BYD_PID_CELL_TEMP_MIN		0x002f
-#define BYD_PID_CELL_TEMP_MAX		0x0031
-#define BYD_PID_CELL_TEMP_AVG		0x0032
-#define BYD_PID_CELL_MV_MIN		0x002b
-#define BYD_PID_CELL_MV_MAX		0x002d
-#define BYD_PID_MAX_CHARGE_POWER	0x000a
-#define BYD_PID_MAX_DISCHARGE_POWER	0x000e
-#define BYD_PID_CHARGE_TIMES		0x000b
-#define BYD_PID_TOTAL_CHARGED_AH	0x000f
-#define BYD_PID_TOTAL_DISCHARGED_AH	0x0010
-#define BYD_PID_TOTAL_CHARGED_KWH	0x0011
-#define BYD_PID_TOTAL_DISCHARGED_KWH	0x0012
-
 /*
  * glue
  */
@@ -104,8 +88,6 @@ struct mg4_softc {
 	struct event		*can_contactor;
 	unsigned int		 can_contactor_idx;
 
-	struct event		*can_poll;
-	unsigned int		 can_poll_idx;
 	struct event		*can_wdog;
 
 	struct batgw_kv		 kvs[MG4_KV_COUNT];
@@ -113,8 +95,6 @@ struct mg4_softc {
 
 static void	mg4_can_keepalive(int, short, void *);
 static void	mg4_can_contactor(int, short, void *);
-static void	mg4_can_poll_start(int, short, void *);
-static void	mg4_can_poll(int, short, void *);
 static void	mg4_can_recv(int, short, void *);
 static void	mg4_can_wdog(int, short, void *);
 
@@ -199,11 +179,6 @@ mg4_attach(struct batgw *bg)
 	if (sc->can_contactor == NULL)
 		errx(1, "new mg4 contactor event failed");
 
-//	sc->can_poll = evtimer_new(batgw_event_base(bg),
-//	    mg4_can_poll, bg);
-//	if (sc->can_poll == NULL)
-//		errx(1, "new mg4 can poll event failed");
-
 	sc->can_wdog = evtimer_new(batgw_event_base(bg),
 	    mg4_can_wdog, bg);
 	if (sc->can_wdog == NULL)
@@ -246,7 +221,6 @@ mg4_dispatch(struct batgw *bg, void *arg)
 	mg4_can_keepalive(0, 0, bg);
 	mg4_can_contactor(0, 0, bg);
 #endif
-//	mg4_can_poll_start(0, 0, bg);
 }
 
 static void
@@ -321,89 +295,6 @@ mg4_can_contactor(int nil, short events, void *arg)
 	rv = send(EVENT_FD(sc->can_recv), &frame, sizeof(frame), 0);
 	if (rv == -1)
 		lwarn("mg4 contactor");
-}
-
-static const uint16_t mg4_poll_pids[] = {
-	0xb046,
-	0xb048,
-	0xb056,
-};
-
-static void
-mg4_can_poll_start(int nil, short events, void *arg)
-{
-	struct batgw *bg = arg;
-	struct mg4_softc *sc = batgw_b_softc(bg);
-
-	unsigned int idx = sc->can_poll_idx;
-	uint16_t pid;
-	struct can_frame frame = {
-		.can_id = 0x781,
-		.len = 8,
-		//.data = { 0x03, 0x19, 0x02, 0xff, 0x00, 0x00, 0x00, 0x00 },
-		.data = { 0x04, 0x14, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00 },
-	};
-	ssize_t rv;
-
-	evtimer_add(sc->can_poll, &mg4_200ms);
-
-	if (0) {
-		size_t i;
-
-		printf("tx 0x%03x [%u]", frame.can_id, frame.len);
-		for (i = 0; i < frame.len; i++) {
-			printf(" %02x", frame.data[i]);
-		}
-		printf("\n");
-	}
-
-	rv = send(EVENT_FD(sc->can_recv), &frame, sizeof(frame), 0);
-	if (rv == -1) {
-		lwarn("mg4 can poll");
-		return;
-	}
-}
-
-static void
-mg4_can_poll(int nil, short events, void *arg)
-{
-	struct batgw *bg = arg;
-	struct mg4_softc *sc = batgw_b_softc(bg);
-
-	unsigned int idx = sc->can_poll_idx;
-	uint16_t pid;
-	struct can_frame frame = {
-		.can_id = 0x781,
-		.len = 8,
-		.data = { 0x03, 0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	};
-	ssize_t rv;
-
-	idx = sc->can_poll_idx;
-	pid = mg4_poll_pids[idx];
-	if (++idx >= nitems(mg4_poll_pids))
-		idx = 0;
-	sc->can_poll_idx = idx;
-
-	evtimer_add(sc->can_poll, &mg4_200ms);
-
-	can_htobe16(&frame, 2, pid);
-
-	if (0) {
-		size_t i;
-
-		printf("rx 0x%03x [%u]", frame.can_id, frame.len);
-		for (i = 0; i < frame.len; i++) {
-			printf(" %02x", frame.data[i]);
-		}
-		printf("\n");
-	}
-
-	rv = send(EVENT_FD(sc->can_recv), &frame, sizeof(frame), 0);
-	if (rv == -1) {
-		lwarn("mg4 can poll");
-		return;
-	}
 }
 
 static void
@@ -491,16 +382,6 @@ mg4_can_recv(int fd, short events, void *arg)
 		batgw_b_set_soc_c_pct(bg, uv * 10);
 		batgw_kv_update(bg, "battery",
                     &sc->kvs[MG4_KV_SOC], uv);
-		break;
-
-	case 0x7ed:
-		printf("ermagerd\n");
-
-		switch (can_betoh16(&frame, 2)) {
-		case 0xb046:
-			printf("raw soc\n");
-			break;
-		}
 		break;
 	}
 }
