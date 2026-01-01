@@ -30,6 +30,9 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
+#define LIBBSD_OPENBSD_VIS
+#include <bsd/vis.h>
+
 #include "../batgw_config.h"
 #include "../batgw.h"
 #include "../log.h"
@@ -331,6 +334,7 @@ byd_can_i_recv(int fd, short events, void *arg)
 	unsigned int bdv, idv;
 	int16_t ida;
 	unsigned int contactor = 0;
+	char visdst[8 * 4 + 1];
 
 	rv = recv(fd, &frame, sizeof(frame), 0);
 	if (rv == -1) {
@@ -381,7 +385,10 @@ byd_can_i_recv(int fd, short events, void *arg)
 	case 0x151:
 		switch (frame.data[0]) {
 		case 0x00:
-			linfo("inverter brand %s", frame.data + 1);
+			strvisx(visdst,
+			    frame.data + 1, sizeof(frame.data) - 1,
+			    VIS_NL | VIS_TAB);
+			linfo("inverter brand %s", visdst);
 			break;
 		case 0x01:
 			byd_can_i_hello(bg, sc);
