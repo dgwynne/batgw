@@ -352,11 +352,11 @@ dump_config(const struct batgw_config *conf)
 		printf("\t" "interface \"%s\"" "\n", conf->battery.ifname);
 	if (conf->battery.max_charge_w != 0) {
 		printf("\t" "charge limit %u max %u\n",
-		    conf->battery.max_charge_w, conf->battery.charge_w);
+		    conf->battery.charge_w, conf->battery.max_charge_w);
 	}
 	if (conf->battery.max_discharge_w != 0) {
 		printf("\t" "discharge limit %u max %u\n",
-		    conf->battery.max_discharge_w, conf->battery.discharge_w);
+		    conf->battery.discharge_w, conf->battery.max_discharge_w);
 	}
 	printf("}\n\n");
 
